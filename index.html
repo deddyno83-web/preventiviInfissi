@@ -477,12 +477,13 @@ tbody tr:hover { background: var(--bg); }
 //  FIREBASE CONFIG — sostituisci con i tuoi dati
 // ════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDK2qpsavt2oDKD8T8MxeLz-hXRhAtL-Pc",
+  authDomain: "infissipro-747ac.firebaseapp.com",
+  projectId: "infissipro-747ac",
+  storageBucket: "infissipro-747ac.firebasestorage.app",
+  messagingSenderId: "53831286391",
+  appId: "1:53831286391:web:d12b78cc0cb50b37b59072",
+  measurementId: "G-E100WWF3JQ"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -493,7 +494,7 @@ const db = firebase.firestore();
 //  AUTH
 // ════════════════════════════════════════════
 let currentUser = null;
-const ALLOWED_EMAILS = []; // lascia vuoto per permettere tutti, oppure ['email1@gmail.com','email2@gmail.com']
+const ALLOWED_EMAILS = ['deddyno83@gmail.com'];
 
 function signInGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
