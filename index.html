@@ -237,6 +237,9 @@ tbody tr:hover { background: var(--bg); }
   padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
+/* ogni modal successiva sale di z-index */
+.modal-overlay:nth-child(2) { z-index: 210; background: rgba(0,0,0,0.35); }
+.modal-overlay:nth-child(3) { z-index: 220; background: rgba(0,0,0,0.25); }
 .modal {
   background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg);
   width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto;
@@ -474,13 +477,12 @@ tbody tr:hover { background: var(--bg); }
 //  FIREBASE CONFIG — sostituisci con i tuoi dati
 // ════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyDK2qpsavt2oDKD8T8MxeLz-hXRhAtL-Pc",
-  authDomain: "infissipro-747ac.firebaseapp.com",
-  projectId: "infissipro-747ac",
-  storageBucket: "infissipro-747ac.firebasestorage.app",
-  messagingSenderId: "53831286391",
-  appId: "1:53831286391:web:d12b78cc0cb50b37b59072",
-  measurementId: "G-E100WWF3JQ"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -491,7 +493,7 @@ const db = firebase.firestore();
 //  AUTH
 // ════════════════════════════════════════════
 let currentUser = null;
-const ALLOWED_EMAILS = ['deddyno83@gmail.com']; // lascia vuoto per permettere tutti, oppure ['email1@gmail.com','email2@gmail.com']
+const ALLOWED_EMAILS = []; // lascia vuoto per permettere tutti, oppure ['email1@gmail.com','email2@gmail.com']
 
 function signInGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -567,21 +569,30 @@ function toast(msg, type = 'info') {
 }
 
 // ════════════════════════════════════════════
-//  MODAL
+//  MODAL — stack system (modal sopra modal)
 // ════════════════════════════════════════════
+let _modalStack = [];
+
 function openModal(html, large = false) {
-  const c = document.getElementById('modal-container');
-  c.innerHTML = `
-    <div class="modal-overlay" id="current-modal">
-      <div class="modal ${large?'modal-lg':''}">
-        ${html}
-      </div>
-    </div>`;
-  requestAnimationFrame(() => document.getElementById('current-modal').classList.add('open'));
+  const id = 'modal-' + Date.now();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = id;
+  overlay.innerHTML = `<div class="modal ${large?'modal-lg':''}">${html}</div>`;
+  document.getElementById('modal-container').appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  _modalStack.push(id);
 }
+
 function closeModal() {
-  const m = document.getElementById('current-modal');
+  if (!_modalStack.length) return;
+  const id = _modalStack.pop();
+  const m = document.getElementById(id);
   if (m) { m.classList.remove('open'); setTimeout(() => m.remove(), 200); }
+}
+
+function closeAllModals() {
+  [..._modalStack].forEach(() => closeModal());
 }
 
 // ════════════════════════════════════════════
@@ -727,6 +738,37 @@ async function saveSettings() {
 }
 
 // ════════════════════════════════════════════
+//  CATEGORIE & MATERIALI (personalizzabili)
+// ════════════════════════════════════════════
+let categorieList = ["Finestra","Porta","Portafinestra","Porta d'ingresso","Tapparella","Veneziana","Zanzariera","Altro"];
+let materialiList = ["PVC","Alluminio","Legno","Legno-Alluminio","Acciaio","Altro"];
+
+async function loadCatMat() {
+  const doc = await db.collection("settings").doc("catmat").get();
+  if (doc.exists) {
+    if (doc.data().categorie?.length) categorieList = doc.data().categorie;
+    if (doc.data().materiali?.length) materialiList = doc.data().materiali;
+  }
+}
+async function saveCatMat() {
+  await db.collection("settings").doc("catmat").set({ categorie: categorieList, materiali: materialiList });
+}
+
+function openCatMatModal() {
+  const catTags = () => categorieList.map((c,i)=>"<span class='chip' style='display:inline-flex;align-items:center;gap:4px'>"+c+"<button onclick='removeCat("+i+")' style='background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:0.9rem;padding:0 2px'>x</button></span>").join("");
+  const matTags = () => materialiList.map((m,i)=>"<span class='chip' style='display:inline-flex;align-items:center;gap:4px'>"+m+"<button onclick='removeMat("+i+")' style='background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:0.9rem;padding:0 2px'>x</button></span>").join("");
+  openModal("<div class='modal-header'><h2 class='modal-title'>Categorie e Materiali</h2><button class='btn-close' onclick='closeModal()'>x</button></div><div class='modal-body'><div class='form-row'><div><label class='form-label'>Categorie prodotto</label><div id='cat-tag-list' style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px'>"+catTags()+"</div><div style='display:flex;gap:8px'><input class='form-input' id='new-cat-input' placeholder='Nuova categoria...' style='flex:1'><button class='btn btn-primary btn-sm' onclick='addCat()'>+ Aggiungi</button></div></div><div><label class='form-label'>Materiali</label><div id='mat-tag-list' style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px'>"+matTags()+"</div><div style='display:flex;gap:8px'><input class='form-input' id='new-mat-input' placeholder='Nuovo materiale...' style='flex:1'><button class='btn btn-primary btn-sm' onclick='addMat()'>+ Aggiungi</button></div></div></div></div><div class='modal-footer'><button class='btn btn-secondary' onclick='closeModal()'>Annulla</button><button class='btn btn-primary' onclick='saveCatMatAndClose()'>Salva</button></div>");
+}
+
+function refreshCatTags(){const el=document.getElementById("cat-tag-list");if(el)el.innerHTML=categorieList.map((c,i)=>"<span class='chip' style='display:inline-flex;align-items:center;gap:4px'>"+c+"<button onclick='removeCat("+i+")' style='background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:0.9rem;padding:0 2px'>x</button></span>").join("");}
+function refreshMatTags(){const el=document.getElementById("mat-tag-list");if(el)el.innerHTML=materialiList.map((m,i)=>"<span class='chip' style='display:inline-flex;align-items:center;gap:4px'>"+m+"<button onclick='removeMat("+i+")' style='background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:0.9rem;padding:0 2px'>x</button></span>").join("");}
+function addCat(){const v=document.getElementById("new-cat-input").value.trim();if(v&&!categorieList.includes(v)){categorieList.push(v);document.getElementById("new-cat-input").value="";refreshCatTags();}}
+function removeCat(i){categorieList.splice(i,1);refreshCatTags();}
+function addMat(){const v=document.getElementById("new-mat-input").value.trim();if(v&&!materialiList.includes(v)){materialiList.push(v);document.getElementById("new-mat-input").value="";refreshMatTags();}}
+function removeMat(i){materialiList.splice(i,1);refreshMatTags();}
+async function saveCatMatAndClose(){await saveCatMat();closeModal();toast("Categorie e materiali salvati!","success");}
+
+// ════════════════════════════════════════════
 //  PRODOTTI
 // ════════════════════════════════════════════
 let prodotti = [];
@@ -738,6 +780,9 @@ async function loadProdotti() {
 
 function renderProdotti() {
   document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-secondary" onclick="openCatMatModal()" style="gap:6px">
+      ⚙️ <span class="btn-text">Categorie/Materiali</span>
+    </button>
     <button class="btn btn-primary" onclick="openProdottoModal()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <span class="btn-text">Nuovo Prodotto</span>
@@ -803,10 +848,8 @@ function filterByCat(cat, btn) {
   filterProdotti(q);
 }
 
-function openProdottoModal(id = null) {
+function openProdottoModal(id = null, fromPicker = false) {
   const p = id ? prodotti.find(x => x.id === id) : {};
-  const categorie = ['Finestra', 'Porta', 'Portafinestra', 'Porta d\'ingresso', 'Tapparella', 'Veneziana', 'Zanzariera', 'Altro'];
-  const materiali = ['PVC', 'Alluminio', 'Legno', 'Legno-Alluminio', 'Acciaio', 'Altro'];
   openModal(`
     <div class="modal-header">
       <h2 class="modal-title">${id ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2>
@@ -821,7 +864,7 @@ function openProdottoModal(id = null) {
         <div class="form-group">
           <label class="form-label">Categoria *</label>
           <select class="form-select" id="p-cat">
-            ${categorie.map(c => `<option value="${c}" ${p.categoria===c?'selected':''}>${c}</option>`).join('')}
+            ${categorieList.map(c => `<option value="${c}" ${p.categoria===c?'selected':''}>${c}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -829,7 +872,7 @@ function openProdottoModal(id = null) {
         <div class="form-group">
           <label class="form-label">Materiale</label>
           <select class="form-select" id="p-mat">
-            ${materiali.map(m => `<option value="${m}" ${p.materiale===m?'selected':''}>${m}</option>`).join('')}
+            ${materialiList.map(m => `<option value="${m}" ${p.materiale===m?'selected':''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -852,11 +895,11 @@ function openProdottoModal(id = null) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
-      <button class="btn btn-primary" onclick="saveProdotto('${id||''}')">💾 Salva Prodotto</button>
+      <button class="btn btn-primary" onclick="saveProdotto('${id||''}', ${fromPicker})">💾 Salva Prodotto</button>
     </div>`);
 }
 
-async function saveProdotto(id) {
+async function saveProdotto(id, fromPicker = false) {
   const nome = document.getElementById('p-nome').value.trim();
   const prezzo = parseFloat(document.getElementById('p-prezzo').value);
   if (!nome || isNaN(prezzo)) { toast('Compila nome e prezzo', 'error'); return; }
@@ -868,16 +911,30 @@ async function saveProdotto(id) {
     descrizione: document.getElementById('p-desc').value,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
+  let newDocId = id;
   if (id) {
     await db.collection('prodotti').doc(id).update(data);
     toast('Prodotto aggiornato!', 'success');
   } else {
     data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    await db.collection('prodotti').add(data);
+    const ref = await db.collection('prodotti').add(data);
+    newDocId = ref.id;
     toast('Prodotto aggiunto!', 'success');
   }
+  // reload prodotti list
+  await loadProdotti();
   closeModal();
-  renderProdotti();
+  if (fromPicker) {
+    // auto-select the new product and re-open picker
+    const newProd = prodotti.find(p => p.id === newDocId);
+    if (newProd) {
+      preventivoItems.push({ prodottoId: newProd.id, nome: newProd.nome, categoria: newProd.categoria, materiale: newProd.materiale, prezzo: newProd.prezzo, um: newProd.um, qty: 1, note: '' });
+      renderPreventivoItems();
+      toast('Prodotto creato e aggiunto al preventivo!', 'success');
+    }
+  } else {
+    renderProdotti();
+  }
 }
 
 async function deleteProdotto(id) {
@@ -1051,6 +1108,7 @@ function newPreventivoForCliente(clienteId) {
 // ════════════════════════════════════════════
 let preventivi = [];
 let preventivoItems = []; // items in modal editor
+let _prevSconto = { tipo: 'nessuno', valore: 0 }; // sconto corrente
 
 async function loadPreventivi() {
   const snap = await db.collection('preventivi').orderBy('createdAt','desc').get();
@@ -1142,6 +1200,7 @@ function filterPreventivi(q) {
 function openPreventivoModal(id = null, preselClienteId = null) {
   const prev = id ? preventivi.find(x => x.id === id) : null;
   preventivoItems = prev ? JSON.parse(JSON.stringify(prev.items || [])) : [];
+  _prevSconto = prev ? { tipo: prev.scontoTipo||'nessuno', valore: prev.scontoValore||0 } : { tipo: 'nessuno', valore: 0 };
 
   const clienteOptions = clienti.map(c =>
     `<option value="${c.id}" ${(prev?.clienteId||preselClienteId)===c.id?'selected':''}>${c.cognome} ${c.nome}${c.azienda?' — '+c.azienda:''}</option>`
@@ -1226,16 +1285,50 @@ function renderPreventivoItems() {
   }).join('');
 
   const iva = companyData.iva || 22;
-  const ivaAmt = subtot * iva / 100;
-  const totale = subtot + ivaAmt;
+  // calcola sconto
+  let scontoAmt = 0;
+  if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) {
+    scontoAmt = subtot * _prevSconto.valore / 100;
+  } else if (_prevSconto.tipo === 'fisso' && _prevSconto.valore > 0) {
+    scontoAmt = Math.min(_prevSconto.valore, subtot);
+  }
+  const imponibile = subtot - scontoAmt;
+  const ivaAmt = imponibile * iva / 100;
+  const totale = imponibile + ivaAmt;
+
+  const scontoSelected = (v) => _prevSconto.tipo === v ? 'selected' : '';
 
   totBox.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:0.5px;text-transform:uppercase">🏷️ Sconto Cliente</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select class="form-select" style="width:160px" onchange="updateScontoTipo(this.value)">
+          <option value="nessuno" ${scontoSelected('nessuno')}>Nessuno sconto</option>
+          <option value="perc" ${scontoSelected('perc')}>Sconto %</option>
+          <option value="fisso" ${scontoSelected('fisso')}>Sconto importo fisso €</option>
+        </select>
+        ${_prevSconto.tipo !== 'nessuno' ? `
+        <input class="form-input" type="number" min="0" step="0.01"
+          style="width:130px"
+          placeholder="${_prevSconto.tipo === 'perc' ? 'Es. 10 (%)' : 'Es. 200 (€)'}"
+          value="${_prevSconto.valore||''}"
+          oninput="updateScontoValore(this.value)">
+        <span style="color:var(--gold-dark);font-weight:700;font-size:0.95rem">
+          − ${_prevSconto.tipo === 'perc' ? _prevSconto.valore+'%' : ''} ${fmt(scontoAmt)}
+        </span>` : ''}
+      </div>
+    </div>
     <div class="totale-box">
-      <div class="totale-row" style="margin-bottom:8px"><span>Imponibile</span><span>${fmt(subtot)}</span></div>
-      <div class="totale-row" style="margin-bottom:12px"><span>IVA ${iva}%</span><span>${fmt(ivaAmt)}</span></div>
+      <div class="totale-row" style="margin-bottom:6px"><span style="color:rgba(255,255,255,0.6)">Subtotale</span><span>${fmt(subtot)}</span></div>
+      ${scontoAmt > 0 ? `<div class="totale-row" style="margin-bottom:6px"><span style="color:#7DCEA0">Sconto</span><span style="color:#7DCEA0">− ${fmt(scontoAmt)}</span></div>` : ''}
+      <div class="totale-row" style="margin-bottom:6px"><span style="color:rgba(255,255,255,0.6)">Imponibile</span><span>${fmt(imponibile)}</span></div>
+      <div class="totale-row" style="margin-bottom:12px"><span style="color:rgba(255,255,255,0.6)">IVA ${iva}%</span><span>${fmt(ivaAmt)}</span></div>
       <div class="totale-row"><span style="font-size:0.9rem">TOTALE</span><span class="totale-final">${fmt(totale)}</span></div>
     </div>`;
 }
+
+function updateScontoTipo(v) { _prevSconto.tipo = v; if(v==='nessuno') _prevSconto.valore=0; renderPreventivoItems(); }
+function updateScontoValore(v) { _prevSconto.valore = parseFloat(v)||0; renderPreventivoItems(); }
 
 function updateItemQty(i, v) { preventivoItems[i].qty = parseFloat(v) || 1; renderPreventivoItems(); }
 function updateItemNote(i, v) { preventivoItems[i].note = v; }
@@ -1243,16 +1336,21 @@ function removeItem(i) { preventivoItems.splice(i, 1); renderPreventivoItems(); 
 
 // ── PRODUCT PICKER ──
 function openProductPicker() {
-  let selected = [];
+  window._pickerSelected = {};
   openModal(`
     <div class="modal-header">
       <h2 class="modal-title">Aggiungi Prodotti</h2>
       <button class="btn-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="search-box" style="margin-bottom:16px">
-        <span class="search-icon">🔍</span>
-        <input class="form-input" placeholder="Cerca..." oninput="filterPickerProducts(this.value)">
+      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
+        <div class="search-box" style="flex:1">
+          <span class="search-icon">🔍</span>
+          <input class="form-input" placeholder="Cerca prodotto..." oninput="filterPickerProducts(this.value)" id="picker-search">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openProdottoModal(null, true)" title="Crea nuovo prodotto al volo">
+          ✚ Nuovo
+        </button>
       </div>
       <div class="product-grid" id="picker-grid"></div>
     </div>
@@ -1261,7 +1359,6 @@ function openProductPicker() {
       <button class="btn btn-primary" onclick="confirmProductPick()">Aggiungi Selezionati</button>
     </div>`);
 
-  window._pickerSelected = {};
   renderPickerGrid(prodotti);
 }
 
@@ -1288,14 +1385,16 @@ function filterPickerProducts(q) {
 
 function confirmProductPick() {
   const picked = Object.keys(window._pickerSelected).filter(id => window._pickerSelected[id]);
+  if (!picked.length) { toast('Seleziona almeno un prodotto', 'error'); return; }
   picked.forEach(id => {
     const p = prodotti.find(x => x.id === id);
     if (p && !preventivoItems.find(it => it.prodottoId === id)) {
       preventivoItems.push({ prodottoId: id, nome: p.nome, categoria: p.categoria, materiale: p.materiale, prezzo: p.prezzo, um: p.um, qty: 1, note: '' });
     }
   });
-  closeModal();
-  renderPreventivoItems();
+  closeModal(); // chiude solo il picker, la modal preventivo rimane aperta
+  renderPreventivoItems(); // aggiorna la lista nella modal sotto
+  toast(`${picked.length} prodotto${picked.length>1?'i':''} aggiunto${picked.length>1?'i':''}!`, 'success');
 }
 
 async function savePreventivo(id) {
@@ -1305,8 +1404,12 @@ async function savePreventivo(id) {
 
   const iva = companyData.iva || 22;
   const subtotale = preventivoItems.reduce((s, it) => s + (it.prezzo * it.qty), 0);
-  const ivaAmt = subtotale * iva / 100;
-  const totaleFinale = subtotale + ivaAmt;
+  let scontoAmt = 0;
+  if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) scontoAmt = subtotale * _prevSconto.valore / 100;
+  else if (_prevSconto.tipo === 'fisso' && _prevSconto.valore > 0) scontoAmt = Math.min(_prevSconto.valore, subtotale);
+  const imponibile = subtotale - scontoAmt;
+  const ivaAmt = imponibile * iva / 100;
+  const totaleFinale = imponibile + ivaAmt;
   const cl = clienti.find(c => c.id === clienteId);
 
   const data = {
@@ -1315,7 +1418,8 @@ async function savePreventivo(id) {
     stato: document.getElementById('pv-stato').value,
     note: document.getElementById('pv-note').value,
     items: preventivoItems,
-    subtotale, ivaAmt, totaleFinale,
+    subtotale, scontoAmt, scontoTipo: _prevSconto.tipo, scontoValore: _prevSconto.valore,
+    imponibile, ivaAmt, totaleFinale,
     ivaPerc: iva,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -1470,20 +1574,35 @@ async function generatePDF(prevId) {
   });
 
   // TOTALI
-  const ivaAmt = subtot * (prev.ivaPerc||22) / 100;
-  const totale = subtot + ivaAmt;
+  const scontoAmt = prev.scontoAmt || 0;
+  const imponibile = subtot - scontoAmt;
+  const ivaAmt = imponibile * (prev.ivaPerc||22) / 100;
+  const totale = imponibile + ivaAmt;
 
   y += 4;
   doc.setDrawColor(230, 225, 218);
   doc.line(M, y, W-M, y); y += 2;
 
   const totX = W - M - 4;
-  const labX = W - M - 60;
+  const labX = W - M - 70;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80,75,70);
-  doc.text('Imponibile:', labX, y+7); doc.text(fmt(subtot), totX, y+7, { align: 'right' });
-  doc.text(`IVA ${prev.ivaPerc||22}%:`, labX, y+15); doc.text(fmt(ivaAmt), totX, y+15, { align: 'right' });
+  doc.text('Subtotale:', labX, y+7); doc.text(fmt(subtot), totX, y+7, { align: 'right' });
+  let extraY = 0;
+  if (scontoAmt > 0) {
+    const sLabel = prev.scontoTipo === 'perc' ? `Sconto ${prev.scontoValore}%:` : 'Sconto:';
+    doc.setTextColor(39, 174, 96);
+    doc.text(sLabel, labX, y+15); doc.text('- ' + fmt(scontoAmt), totX, y+15, { align: 'right' });
+    doc.setTextColor(80,75,70);
+    doc.text('Imponibile:', labX, y+23); doc.text(fmt(imponibile), totX, y+23, { align: 'right' });
+    doc.text(`IVA ${prev.ivaPerc||22}%:`, labX, y+31); doc.text(fmt(ivaAmt), totX, y+31, { align: 'right' });
+    extraY = 24;
+  } else {
+    doc.text('Imponibile:', labX, y+15); doc.text(fmt(imponibile), totX, y+15, { align: 'right' });
+    doc.text(`IVA ${prev.ivaPerc||22}%:`, labX, y+23); doc.text(fmt(ivaAmt), totX, y+23, { align: 'right' });
+    extraY = 8;
+  }
 
-  y += 18;
+  y += extraY + 10;
   doc.setFillColor(45, 43, 39);
   doc.roundedRect(labX-5, y, (W-M-4)-labX+9, 14, 3, 3, 'F');
   doc.setTextColor(201, 168, 76);
@@ -1645,6 +1764,7 @@ async function renderDashboard() {
 //  INIT
 // ════════════════════════════════════════════
 loadCompany();
+loadCatMat();
 </script>
 </body>
 </html>
