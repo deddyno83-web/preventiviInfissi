@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfissiPro — Gestione Preventivi</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F7F5F2;
+  --surface: #FFFFFF;
+  --surface2: #F0EDE8;
+  --border: #E2DDD6;
+  --text: #1C1A17;
+  --text2: #6B6560;
+  --text3: #9C978F;
+  --gold: #C9A84C;
+  --gold-light: #F0E4C0;
+  --gold-dark: #A8893A;
+  --dark: #2D2B27;
+  --danger: #C0392B;
+  --success: #27AE60;
+  --info: #2980B9;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --sidebar-w: 240px;
+  --transition: all 0.2s ease;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1,h2,h3 { font-family: 'Playfair Display', serif; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── AUTH SCREEN ── */
+#auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1C1A17 0%, #2D2B27 50%, #3D3830 100%);
+  position: relative;
+  overflow: hidden;
+}
+#auth-screen::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(201,168,76,0.15) 0%, transparent 70%);
+  top: -100px; right: -100px;
+}
+#auth-screen::after {
+  content: '';
+  position: absolute;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%);
+  bottom: -50px; left: -50px;
+}
+.auth-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 20px;
+  padding: 48px 40px;
+  width: 380px;
+  max-width: 90vw;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  position: relative;
+  z-index: 1;
+  animation: fadeUp 0.6s ease;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.auth-logo { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--gold); letter-spacing: -0.5px; margin-bottom: 4px; }
+.auth-sub { color: rgba(255,255,255,0.45); font-size: 0.85rem; margin-bottom: 36px; letter-spacing: 2px; text-transform: uppercase; }
+.auth-tagline { color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-bottom: 32px; line-height: 1.6; }
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--gold);
+  color: var(--dark);
+  border: none; border-radius: 10px;
+  padding: 14px 24px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem; font-weight: 600;
+  cursor: pointer; width: 100%;
+  transition: var(--transition);
+}
+.btn-google:hover { background: var(--gold-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,168,76,0.4); }
+.btn-google svg { flex-shrink: 0; }
+.auth-note { color: rgba(255,255,255,0.3); font-size: 0.75rem; margin-top: 20px; }
+
+/* ── APP LAYOUT ── */
+#app { display: none; min-height: 100vh; }
+.layout { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--dark);
+  display: flex; flex-direction: column;
+  position: fixed; left: 0; top: 0; bottom: 0;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-logo-name { font-family: 'Playfair Display', serif; color: var(--gold); font-size: 1.3rem; }
+.sidebar-logo-sub { color: rgba(255,255,255,0.3); font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-section { margin-bottom: 24px; }
+.nav-label { color: rgba(255,255,255,0.25); font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; padding: 0 8px; margin-bottom: 8px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  color: rgba(255,255,255,0.55); font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: var(--transition); margin-bottom: 2px;
+  border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); }
+.nav-item.active { background: rgba(201,168,76,0.15); color: var(--gold); }
+.nav-item .icon { width: 18px; text-align: center; flex-shrink: 0; }
+.sidebar-user {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; gap: 10px;
+}
+.user-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--gold); display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 700; color: var(--dark); flex-shrink: 0;
+  overflow: hidden;
+}
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.user-name { color: rgba(255,255,255,0.7); font-size: 0.82rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-logout { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; padding: 4px; transition: var(--transition); }
+.btn-logout:hover { color: var(--danger); }
+
+/* ── MAIN ── */
+.main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 16px 28px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.menu-toggle { display: none; background: none; border: none; cursor: pointer; color: var(--text); padding: 4px; }
+.topbar-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: var(--text); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.content { flex: 1; padding: 28px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; border: none; transition: var(--transition);
+}
+.btn-primary { background: var(--gold); color: var(--dark); }
+.btn-primary:hover { background: var(--gold-dark); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--surface2); }
+.btn-danger { background: #FDEDED; color: var(--danger); border: 1px solid #F5C6C6; }
+.btn-danger:hover { background: #FAD5D5; }
+.btn-success { background: #EBF8F1; color: var(--success); border: 1px solid #A8DFBE; }
+.btn-ghost { background: none; border: none; color: var(--text2); padding: 6px 10px; }
+.btn-ghost:hover { color: var(--text); background: var(--surface2); border-radius: var(--radius-sm); }
+.btn-sm { padding: 7px 12px; font-size: 0.8rem; }
+.btn-icon { padding: 8px; border-radius: 8px; }
+
+/* ── CARDS ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+.card-sm { padding: 16px; }
+
+/* ── STATS ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 24px; position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute;
+  width: 80px; height: 80px; border-radius: 50%;
+  top: -20px; right: -20px;
+  background: var(--gold-light); opacity: 0.4;
+}
+.stat-label { color: var(--text2); font-size: 0.8rem; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+.stat-value { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--text); margin: 6px 0 4px; }
+.stat-sub { color: var(--text3); font-size: 0.78rem; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; padding: 10px 16px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); font-weight: 600; border-bottom: 1px solid var(--border); }
+tbody td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--bg); }
+
+/* ── BADGE ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.badge-draft { background: #F0EDE8; color: var(--text2); }
+.badge-sent { background: #EBF5FB; color: var(--info); }
+.badge-accepted { background: #EBF8F1; color: var(--success); }
+.badge-rejected { background: #FDEDED; color: var(--danger); }
+
+/* ── FORM ── */
+.form-group { margin-bottom: 18px; }
+.form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; letter-spacing: 0.5px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; color: var(--text);
+  background: var(--surface); transition: var(--transition); outline: none;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+.form-textarea { resize: vertical; min-height: 80px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.open .modal { transform: scale(1); }
+.modal-lg { max-width: 860px; }
+.modal-header { padding: 24px 28px 0; display: flex; align-items: center; justify-content: space-between; }
+.modal-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; }
+.modal-body { padding: 24px 28px; }
+.modal-footer { padding: 0 28px 24px; display: flex; gap: 10px; justify-content: flex-end; }
+.btn-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 1.2rem; padding: 4px; line-height: 1; }
+.btn-close:hover { color: var(--text); }
+
+/* ── PRODUCT PICKER ── */
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; }
+.product-pick-card {
+  border: 2px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px; cursor: pointer; transition: var(--transition);
+}
+.product-pick-card:hover { border-color: var(--gold); background: var(--gold-light); }
+.product-pick-card.selected { border-color: var(--gold); background: rgba(201,168,76,0.1); }
+.product-pick-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+.product-pick-cat { color: var(--text3); font-size: 0.75rem; margin-bottom: 6px; }
+.product-pick-price { color: var(--gold-dark); font-weight: 700; font-size: 1rem; }
+
+/* ── QUOTE ITEMS ── */
+.quote-item {
+  display: grid; align-items: center;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px; padding: 12px 16px;
+  background: var(--bg); border-radius: var(--radius-sm);
+  margin-bottom: 8px; border: 1px solid var(--border);
+}
+.quote-item-name { font-weight: 600; font-size: 0.9rem; }
+.quote-item-cat { color: var(--text3); font-size: 0.75rem; }
+.qty-input { width: 60px; text-align: center; padding: 6px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+.item-total { font-weight: 700; color: var(--gold-dark); min-width: 80px; text-align: right; }
+
+/* ── SEARCH ── */
+.search-box { position: relative; }
+.search-box input { padding-left: 36px; }
+.search-box .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+
+/* ── LOGO UPLOAD ── */
+.logo-upload-area {
+  border: 2px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 20px; text-align: center; cursor: pointer; transition: var(--transition);
+}
+.logo-upload-area:hover { border-color: var(--gold); background: var(--gold-light); }
+.logo-preview { max-height: 80px; margin: 0 auto 8px; display: block; }
+
+/* ── MOBILE ── */
+.bottom-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--dark); border-top: 1px solid rgba(255,255,255,0.08);
+  z-index: 100; padding: 8px 0 env(safe-area-inset-bottom);
+}
+.bottom-nav-items { display: flex; justify-content: space-around; }
+.bottom-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 12px; background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.4); font-size: 0.68rem; font-family: 'DM Sans', sans-serif;
+  transition: var(--transition);
+}
+.bottom-nav-item.active { color: var(--gold); }
+.bottom-nav-item svg { width: 20px; height: 20px; }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text3); }
+.empty-state svg { margin: 0 auto 16px; display: block; opacity: 0.4; }
+.empty-state h3 { font-family: 'Playfair Display', serif; color: var(--text2); margin-bottom: 8px; }
+
+/* ── TOAST ── */
+#toast-container { position: fixed; bottom: 80px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  background: var(--dark); color: white; padding: 12px 18px; border-radius: 10px;
+  font-size: 0.85rem; box-shadow: var(--shadow-lg);
+  animation: slideIn 0.3s ease; display: flex; align-items: center; gap: 10px;
+}
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error { border-left: 3px solid var(--danger); }
+.toast.info { border-left: 3px solid var(--gold); }
+@keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+/* ── DASHBOARD ── */
+.recent-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+
+/* ── SETTINGS ── */
+.settings-section { margin-bottom: 28px; }
+.settings-section h3 { font-family: 'Playfair Display', serif; font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .main { margin-left: 0; padding-bottom: 80px; }
+  .topbar { padding: 14px 16px; }
+  .content { padding: 16px; }
+  .menu-toggle { display: block; }
+  .bottom-nav { display: block; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .recent-grid { grid-template-columns: 1fr; }
+  .topbar-actions .btn-text { display: none; }
+}
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .modal { border-radius: 16px 16px 0 0; }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+}
+
+/* ── PRINT ── */
+@media print { body * { display: none; } #print-area { display: block !important; } }
+#print-area { display: none; }
+
+/* ── SIDEBAR OVERLAY (mobile) ── */
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+.sidebar-overlay.open { display: block; }
+
+.chip { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; background: var(--gold-light); color: var(--gold-dark); font-weight: 600; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+.text-right { text-align: right; }
+.text-muted { color: var(--text3); }
+.fw-bold { font-weight: 700; }
+.mt-auto { margin-top: auto; }
+.totale-box { background: var(--dark); color: white; border-radius: var(--radius-sm); padding: 16px 20px; }
+.totale-row { display: flex; justify-content: space-between; align-items: center; }
+.totale-final { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">InfissiPro</div>
+    <div class="auth-sub">Gestione Preventivi</div>
+    <p class="auth-tagline">Il tuo studio digitale per preventivi professionali su infissi, porte e finestre.</p>
+    <button class="btn-google" onclick="signInGoogle()">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.7 2.3 30.2 0 24 0 14.6 0 6.6 5.5 2.7 13.4l7.9 6.1C12.5 13.1 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.6 28.5c-.5-1.5-.8-3.2-.8-4.8s.3-3.3.8-4.8l-7.9-6.1C.9 15.9 0 19.8 0 24s.9 8.1 2.7 11.3l7.9-5.8z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2.1 15.4-5.6l-7.5-5.8c-2.1 1.4-4.8 2.2-7.9 2.2-6.2 0-11.5-3.6-13.4-8.8l-7.9 5.8C6.6 42.5 14.6 48 24 48z"/></svg>
+      Accedi con Google
+    </button>
+    <div class="auth-note">Accesso riservato agli utenti autorizzati</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+  
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-name">InfissiPro</div>
+      <div class="sidebar-logo-sub">Gestione Preventivi</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-label">Menu</div>
+        <button class="nav-item active" onclick="navigate('dashboard')" data-page="dashboard">
+          <span class="icon">⊞</span> Dashboard
+        </button>
+        <button class="nav-item" onclick="navigate('preventivi')" data-page="preventivi">
+          <span class="icon">📋</span> Preventivi
+        </button>
+        <button class="nav-item" onclick="navigate('prodotti')" data-page="prodotti">
+          <span class="icon">📦</span> Prodotti
+        </button>
+        <button class="nav-item" onclick="navigate('clienti')" data-page="clienti">
+          <span class="icon">👥</span> Clienti
+        </button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Sistema</div>
+        <button class="nav-item" onclick="navigate('impostazioni')" data-page="impostazioni">
+          <span class="icon">⚙</span> Impostazioni
+        </button>
+      </div>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="sidebar-avatar"><span id="sidebar-initial">?</span></div>
+      <div class="user-name" id="sidebar-name">Caricamento...</div>
+      <button class="btn-logout" onclick="signOut()" title="Esci">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <h1 class="topbar-title" id="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </header>
+
+    <main class="content" id="page-content"></main>
+  </div>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-items">
+      <button class="bottom-nav-item active" onclick="navigate('dashboard')" data-bnav="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Home
+      </button>
+      <button class="bottom-nav-item" onclick="navigate('preventivi')" data-bnav="preventivi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Preventivi
+      </button>
+      <button class="bottom-nav-item" onclick="navigate('prodotti')" data-bnav="prodotti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Prodotti
+      </button>
+      <button class="bottom-nav-item" onclick="navigate('clienti')" data-bnav="clienti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Clienti
+      </button>
+    </div>
+  </nav>
+</div>
+
+<!-- MODALS (dynamic) -->
+<div id="modal-container"></div>
+<div id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  FIREBASE CONFIG — sostituisci con i tuoi dati
+// ════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyDK2qpsavt2oDKD8T8MxeLz-hXRhAtL-Pc",
+  authDomain: "infissipro-747ac.firebaseapp.com",
+  projectId: "infissipro-747ac",
+  storageBucket: "infissipro-747ac.firebasestorage.app",
+  messagingSenderId: "53831286391",
+  appId: "1:53831286391:web:d12b78cc0cb50b37b59072",
+  measurementId: "G-E100WWF3JQ"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ════════════════════════════════════════════
+//  AUTH
+// ════════════════════════════════════════════
+let currentUser = null;
+const ALLOWED_EMAILS = ['deddyno83@gmail.com']; // lascia vuoto per permettere tutti, oppure ['email1@gmail.com','email2@gmail.com']
+
+function signInGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => toast(e.message, 'error'));
+}
+function signOut() {
+  if(confirm('Sei sicuro di voler uscire?')) auth.signOut();
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(user.email)) {
+      auth.signOut();
+      toast('Accesso non autorizzato per questo account.', 'error');
+      return;
+    }
+    currentUser = user;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    const initial = user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase();
+    document.getElementById('sidebar-initial').textContent = initial;
+    document.getElementById('sidebar-name').textContent = user.displayName || user.email;
+    if (user.photoURL) {
+      document.getElementById('sidebar-avatar').innerHTML = `<img src="${user.photoURL}" alt="">`;
+    }
+    navigate('dashboard');
+  } else {
+    currentUser = null;
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+// ════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════
+let currentPage = 'dashboard';
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  document.querySelectorAll('.bottom-nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.bnav === page);
+  });
+  const titles = { dashboard: 'Dashboard', preventivi: 'Preventivi', prodotti: 'Catalogo Prodotti', clienti: 'Clienti', impostazioni: 'Impostazioni' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  closeSidebar();
+  const renderers = { dashboard: renderDashboard, preventivi: renderPreventivi, prodotti: renderProdotti, clienti: renderClienti, impostazioni: renderImpostazioni };
+  if (renderers[page]) renderers[page]();
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  t.innerHTML = `<span>${icons[type]||'ℹ'}</span> ${msg}`;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ════════════════════════════════════════════
+//  MODAL
+// ════════════════════════════════════════════
+function openModal(html, large = false) {
+  const c = document.getElementById('modal-container');
+  c.innerHTML = `
+    <div class="modal-overlay" id="current-modal">
+      <div class="modal ${large?'modal-lg':''}">
+        ${html}
+      </div>
+    </div>`;
+  requestAnimationFrame(() => document.getElementById('current-modal').classList.add('open'));
+}
+function closeModal() {
+  const m = document.getElementById('current-modal');
+  if (m) { m.classList.remove('open'); setTimeout(() => m.remove(), 200); }
+}
+
+// ════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════
+function fmt(n) { return new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR' }).format(n||0); }
+function fmtDate(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('it-IT');
+}
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6).toUpperCase(); }
+
+function statusBadge(s) {
+  const map = { bozza:'badge-draft', inviato:'badge-sent', accettato:'badge-accepted', rifiutato:'badge-rejected' };
+  const label = { bozza:'Bozza', inviato:'Inviato', accettato:'Accettato', rifiutato:'Rifiutato' };
+  return `<span class="badge ${map[s]||'badge-draft'}">${label[s]||s}</span>`;
+}
+
+// ════════════════════════════════════════════
+//  IMPOSTAZIONI (company profile)
+// ════════════════════════════════════════════
+let companyData = {};
+
+async function loadCompany() {
+  const doc = await db.collection('settings').doc('company').get();
+  if (doc.exists) companyData = doc.data();
+}
+
+function renderImpostazioni() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('page-content').innerHTML = `
+  <div class="settings-section">
+    <h3>🏢 Dati Aziendali</h3>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome Azienda</label>
+          <input class="form-input" id="s-name" value="${companyData.nome||''}" placeholder="Es. Infissi Rossi Srl">
+        </div>
+        <div class="form-group">
+          <label class="form-label">P.IVA / C.F.</label>
+          <input class="form-input" id="s-piva" value="${companyData.piva||''}" placeholder="IT00000000000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Indirizzo</label>
+          <input class="form-input" id="s-address" value="${companyData.indirizzo||''}" placeholder="Via Roma 1, 80100 Napoli">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefono</label>
+          <input class="form-input" id="s-phone" value="${companyData.telefono||''}" placeholder="+39 081 000000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" id="s-email" value="${companyData.email||''}" placeholder="info@tuaazienda.it">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sito Web</label>
+          <input class="form-input" id="s-web" value="${companyData.sito||''}" placeholder="www.tuaazienda.it">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note / Condizioni PDF (pie' di pagina)</label>
+        <textarea class="form-textarea" id="s-note" placeholder="Validità preventivo 30 giorni. IVA esclusa se non diversamente indicato...">${companyData.note||''}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>🖼️ Logo Aziendale</h3>
+    <div class="card">
+      <p style="color:var(--text2);font-size:0.85rem;margin-bottom:16px">Il logo apparirà nell'intestazione dei PDF dei preventivi. Formato consigliato: PNG trasparente, max 400×150px.</p>
+      ${companyData.logoBase64 ? `<img src="${companyData.logoBase64}" class="logo-preview" style="max-height:80px;margin-bottom:12px;display:block">` : ''}
+      <div class="logo-upload-area" onclick="document.getElementById('logo-file').click()">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="margin:0 auto 8px;display:block"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <div style="color:var(--text2);font-size:0.85rem">Clicca per caricare il logo</div>
+        <div style="color:var(--text3);font-size:0.75rem">PNG, JPG — max 2MB</div>
+      </div>
+      <input type="file" id="logo-file" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>📊 IVA Predefinita</h3>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Aliquota IVA (%)</label>
+          <select class="form-select" id="s-iva">
+            <option value="0" ${(companyData.iva||22)==0?'selected':''}>0% (Esente)</option>
+            <option value="4" ${companyData.iva==4?'selected':''}>4%</option>
+            <option value="10" ${companyData.iva==10?'selected':''}>10%</option>
+            <option value="22" ${companyData.iva==22?'selected':''}>22%</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valuta del preventivo</label>
+          <select class="form-select" id="s-valuta">
+            <option value="EUR" ${(companyData.valuta||'EUR')=='EUR'?'selected':''}>EUR (€)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:flex-end">
+    <button class="btn btn-primary" onclick="saveSettings()">💾 Salva Impostazioni</button>
+  </div>`;
+}
+
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2*1024*1024) { toast('File troppo grande (max 2MB)', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    companyData.logoBase64 = ev.target.result;
+    renderImpostazioni();
+    toast('Logo caricato — salva per confermare', 'info');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveSettings() {
+  companyData = {
+    ...companyData,
+    nome: document.getElementById('s-name').value,
+    piva: document.getElementById('s-piva').value,
+    indirizzo: document.getElementById('s-address').value,
+    telefono: document.getElementById('s-phone').value,
+    email: document.getElementById('s-email').value,
+    sito: document.getElementById('s-web').value,
+    note: document.getElementById('s-note').value,
+    iva: parseInt(document.getElementById('s-iva').value),
+    valuta: document.getElementById('s-valuta').value,
+  };
+  await db.collection('settings').doc('company').set(companyData);
+  toast('Impostazioni salvate!', 'success');
+}
+
+// ════════════════════════════════════════════
+//  PRODOTTI
+// ════════════════════════════════════════════
+let prodotti = [];
+
+async function loadProdotti() {
+  const snap = await db.collection('prodotti').orderBy('nome').get();
+  prodotti = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function renderProdotti() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="openProdottoModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="btn-text">Nuovo Prodotto</span>
+    </button>`;
+
+  loadProdotti().then(() => {
+    const cats = ['Tutti', ...new Set(prodotti.map(p => p.categoria).filter(Boolean))];
+    document.getElementById('page-content').innerHTML = `
+    <div class="section-header">
+      <div class="search-box" style="width:280px">
+        <span class="search-icon">🔍</span>
+        <input class="form-input" placeholder="Cerca prodotto..." oninput="filterProdotti(this.value)" id="search-prodotti">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="cat-filters">
+        ${cats.map(c => `<button class="btn btn-sm ${c==='Tutti'?'btn-primary':'btn-secondary'}" onclick="filterByCat('${c}',this)">${c}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Prodotto</th><th>Categoria</th><th>Materiale</th>
+            <th>Prezzo Base</th><th style="text-align:center">Azioni</th>
+          </tr></thead>
+          <tbody id="prodotti-tbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+    renderProdottiTable(prodotti);
+  });
+}
+
+function renderProdottiTable(list) {
+  const tbody = document.getElementById('prodotti-tbody');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><h3>Nessun prodotto</h3><p>Aggiungi il primo prodotto al catalogo</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => `
+    <tr>
+      <td><strong>${p.nome}</strong>${p.descrizione?`<br><small style="color:var(--text3)">${p.descrizione.substring(0,60)}${p.descrizione.length>60?'...':''}</small>`:''}</td>
+      <td><span class="chip">${p.categoria||'—'}</span></td>
+      <td>${p.materiale||'—'}</td>
+      <td><strong>${fmt(p.prezzo)}</strong></td>
+      <td style="text-align:center">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openProdottoModal('${p.id}')" title="Modifica">✏️</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteProdotto('${p.id}')" title="Elimina">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+let currentCatFilter = 'Tutti';
+function filterProdotti(q) {
+  const list = currentCatFilter === 'Tutti' ? prodotti : prodotti.filter(p => p.categoria === currentCatFilter);
+  renderProdottiTable(list.filter(p => (p.nome+p.categoria+p.materiale).toLowerCase().includes(q.toLowerCase())));
+}
+function filterByCat(cat, btn) {
+  currentCatFilter = cat;
+  document.querySelectorAll('#cat-filters .btn').forEach(b => { b.className = 'btn btn-sm btn-secondary'; });
+  btn.className = 'btn btn-sm btn-primary';
+  const q = document.getElementById('search-prodotti')?.value || '';
+  filterProdotti(q);
+}
+
+function openProdottoModal(id = null) {
+  const p = id ? prodotti.find(x => x.id === id) : {};
+  const categorie = ['Finestra', 'Porta', 'Portafinestra', 'Porta d\'ingresso', 'Tapparella', 'Veneziana', 'Zanzariera', 'Altro'];
+  const materiali = ['PVC', 'Alluminio', 'Legno', 'Legno-Alluminio', 'Acciaio', 'Altro'];
+  openModal(`
+    <div class="modal-header">
+      <h2 class="modal-title">${id ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome / Modello *</label>
+          <input class="form-input" id="p-nome" value="${p.nome||''}" placeholder="Es. Serie 70 Classic">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoria *</label>
+          <select class="form-select" id="p-cat">
+            ${categorie.map(c => `<option value="${c}" ${p.categoria===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Materiale</label>
+          <select class="form-select" id="p-mat">
+            ${materiali.map(m => `<option value="${m}" ${p.materiale===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prezzo Base (€) *</label>
+          <input class="form-input" id="p-prezzo" type="number" step="0.01" value="${p.prezzo||''}" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unità di misura</label>
+        <select class="form-select" id="p-um">
+          <option value="cadauno" ${(p.um||'cadauno')==='cadauno'?'selected':''}>Cadauno (cad.)</option>
+          <option value="mq" ${p.um==='mq'?'selected':''}>Metro quadro (m²)</option>
+          <option value="ml" ${p.um==='ml'?'selected':''}>Metro lineare (ml)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descrizione</label>
+        <textarea class="form-textarea" id="p-desc" placeholder="Descrizione tecnica, caratteristiche...">${p.descrizione||''}</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="saveProdotto('${id||''}')">💾 Salva Prodotto</button>
+    </div>`);
+}
+
+async function saveProdotto(id) {
+  const nome = document.getElementById('p-nome').value.trim();
+  const prezzo = parseFloat(document.getElementById('p-prezzo').value);
+  if (!nome || isNaN(prezzo)) { toast('Compila nome e prezzo', 'error'); return; }
+  const data = {
+    nome, prezzo,
+    categoria: document.getElementById('p-cat').value,
+    materiale: document.getElementById('p-mat').value,
+    um: document.getElementById('p-um').value,
+    descrizione: document.getElementById('p-desc').value,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (id) {
+    await db.collection('prodotti').doc(id).update(data);
+    toast('Prodotto aggiornato!', 'success');
+  } else {
+    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('prodotti').add(data);
+    toast('Prodotto aggiunto!', 'success');
+  }
+  closeModal();
+  renderProdotti();
+}
+
+async function deleteProdotto(id) {
+  if (!confirm('Eliminare questo prodotto?')) return;
+  await db.collection('prodotti').doc(id).delete();
+  toast('Prodotto eliminato', 'info');
+  renderProdotti();
+}
+
+// ════════════════════════════════════════════
+//  CLIENTI
+// ════════════════════════════════════════════
+let clienti = [];
+
+async function loadClienti() {
+  const snap = await db.collection('clienti').orderBy('cognome').get();
+  clienti = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function renderClienti() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="openClienteModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="btn-text">Nuovo Cliente</span>
+    </button>`;
+
+  loadClienti().then(() => {
+    document.getElementById('page-content').innerHTML = `
+    <div class="section-header">
+      <div class="search-box" style="width:280px">
+        <span class="search-icon">🔍</span>
+        <input class="form-input" placeholder="Cerca cliente..." oninput="filterClienti(this.value)">
+      </div>
+      <span class="text-muted" style="font-size:0.85rem">${clienti.length} cliente${clienti.length===1?'':'i'}</span>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Nome</th><th>Email</th><th>Telefono</th><th>Città</th><th style="text-align:center">Azioni</th>
+          </tr></thead>
+          <tbody id="clienti-tbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+    renderClientiTable(clienti);
+  });
+}
+
+function renderClientiTable(list) {
+  const tbody = document.getElementById('clienti-tbody');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><h3>Nessun cliente</h3><p>Aggiungi il primo cliente all'anagrafica</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td>
+        <strong>${c.cognome} ${c.nome}</strong>
+        ${c.azienda ? `<br><small style="color:var(--text3)">${c.azienda}</small>` : ''}
+      </td>
+      <td>${c.email||'—'}</td>
+      <td>${c.telefono||'—'}</td>
+      <td>${c.citta||'—'}</td>
+      <td style="text-align:center">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openClienteModal('${c.id}')" title="Modifica">✏️</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="newPreventivoForCliente('${c.id}')" title="Nuovo preventivo">📋</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteCliente('${c.id}')" title="Elimina">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function filterClienti(q) {
+  renderClientiTable(clienti.filter(c => (c.cognome+c.nome+c.azienda+c.email).toLowerCase().includes(q.toLowerCase())));
+}
+
+function openClienteModal(id = null) {
+  const c = id ? clienti.find(x => x.id === id) : {};
+  openModal(`
+    <div class="modal-header">
+      <h2 class="modal-title">${id ? 'Modifica Cliente' : 'Nuovo Cliente'}</h2>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cognome *</label>
+          <input class="form-input" id="c-cognome" value="${c.cognome||''}" placeholder="Rossi">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input class="form-input" id="c-nome" value="${c.nome||''}" placeholder="Mario">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Azienda</label>
+        <input class="form-input" id="c-azienda" value="${c.azienda||''}" placeholder="Rossi & Figli Srl (opzionale)">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" id="c-email" type="email" value="${c.email||''}" placeholder="mario.rossi@email.it">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefono</label>
+          <input class="form-input" id="c-tel" value="${c.telefono||''}" placeholder="+39 333 000000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Indirizzo</label>
+          <input class="form-input" id="c-addr" value="${c.indirizzo||''}" placeholder="Via Roma 1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CAP / Città</label>
+          <input class="form-input" id="c-citta" value="${c.citta||''}" placeholder="80100 Napoli">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note</label>
+        <textarea class="form-textarea" id="c-note" placeholder="Note interne sul cliente...">${c.note||''}</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="saveCliente('${id||''}')">💾 Salva Cliente</button>
+    </div>`);
+}
+
+async function saveCliente(id) {
+  const cognome = document.getElementById('c-cognome').value.trim();
+  const nome = document.getElementById('c-nome').value.trim();
+  if (!cognome) { toast('Inserisci almeno il cognome', 'error'); return; }
+  const data = {
+    cognome, nome,
+    azienda: document.getElementById('c-azienda').value,
+    email: document.getElementById('c-email').value,
+    telefono: document.getElementById('c-tel').value,
+    indirizzo: document.getElementById('c-addr').value,
+    citta: document.getElementById('c-citta').value,
+    note: document.getElementById('c-note').value,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (id) {
+    await db.collection('clienti').doc(id).update(data);
+    toast('Cliente aggiornato!', 'success');
+  } else {
+    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('clienti').add(data);
+    toast('Cliente aggiunto!', 'success');
+  }
+  closeModal();
+  renderClienti();
+}
+
+async function deleteCliente(id) {
+  if (!confirm('Eliminare questo cliente?')) return;
+  await db.collection('clienti').doc(id).delete();
+  toast('Cliente eliminato', 'info');
+  renderClienti();
+}
+
+function newPreventivoForCliente(clienteId) {
+  navigate('preventivi');
+  setTimeout(() => openPreventivoModal(null, clienteId), 300);
+}
+
+// ════════════════════════════════════════════
+//  PREVENTIVI
+// ════════════════════════════════════════════
+let preventivi = [];
+let preventivoItems = []; // items in modal editor
+
+async function loadPreventivi() {
+  const snap = await db.collection('preventivi').orderBy('createdAt','desc').get();
+  preventivi = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function renderPreventivi() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="openPreventivoModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="btn-text">Nuovo Preventivo</span>
+    </button>`;
+
+  Promise.all([loadPreventivi(), loadClienti()]).then(() => {
+    document.getElementById('page-content').innerHTML = `
+    <div class="section-header" style="flex-wrap:wrap;gap:12px">
+      <div class="search-box" style="width:260px">
+        <span class="search-icon">🔍</span>
+        <input class="form-input" placeholder="Cerca preventivo..." oninput="filterPreventivi(this.value)">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="filterPrevByStatus('tutti',this)">Tutti</button>
+        <button class="btn btn-sm btn-secondary" onclick="filterPrevByStatus('bozza',this)">Bozze</button>
+        <button class="btn btn-sm btn-secondary" onclick="filterPrevByStatus('inviato',this)">Inviati</button>
+        <button class="btn btn-sm btn-secondary" onclick="filterPrevByStatus('accettato',this)">Accettati</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>N° Prev.</th><th>Cliente</th><th>Data</th>
+            <th>Totale</th><th>Stato</th><th style="text-align:center">Azioni</th>
+          </tr></thead>
+          <tbody id="preventivi-tbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+    renderPreventiviTable(preventivi);
+  });
+}
+
+function renderPreventiviTable(list) {
+  const tbody = document.getElementById('preventivi-tbody');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Nessun preventivo</h3><p>Crea il primo preventivo</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => {
+    const cl = clienti.find(c => c.id === p.clienteId);
+    const nomeCliente = cl ? `${cl.cognome} ${cl.nome}` : p.clienteNome || '—';
+    return `<tr>
+      <td><strong>#${p.numero||p.id.slice(-6).toUpperCase()}</strong></td>
+      <td>${nomeCliente}${cl?.azienda?`<br><small style="color:var(--text3)">${cl.azienda}</small>`:''}</td>
+      <td>${fmtDate(p.createdAt)}</td>
+      <td><strong>${fmt(p.totaleFinale)}</strong></td>
+      <td>${statusBadge(p.stato||'bozza')}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openPreventivoModal('${p.id}')" title="Apri">📋</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="generatePDF('${p.id}')" title="PDF">📄</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="sendEmail('${p.id}')" title="Email">📧</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="deletePreventivo('${p.id}')" title="Elimina">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+let prevStatusFilter = 'tutti';
+function filterPrevByStatus(status, btn) {
+  prevStatusFilter = status;
+  document.querySelectorAll('#preventivi-tbody').length; // update UI
+  const allBtns = btn.parentElement.querySelectorAll('.btn');
+  allBtns.forEach(b => b.className = 'btn btn-sm btn-secondary');
+  btn.className = 'btn btn-sm btn-primary';
+  const filtered = status === 'tutti' ? preventivi : preventivi.filter(p => p.stato === status);
+  renderPreventiviTable(filtered);
+}
+function filterPreventivi(q) {
+  const list = preventivi.filter(p => {
+    const cl = clienti.find(c => c.id === p.clienteId);
+    const name = cl ? `${cl.cognome} ${cl.nome}` : p.clienteNome || '';
+    return name.toLowerCase().includes(q.toLowerCase()) || (p.numero||'').toLowerCase().includes(q.toLowerCase());
+  });
+  renderPreventiviTable(list);
+}
+
+// ── PREVENTIVO MODAL (editor) ──
+function openPreventivoModal(id = null, preselClienteId = null) {
+  const prev = id ? preventivi.find(x => x.id === id) : null;
+  preventivoItems = prev ? JSON.parse(JSON.stringify(prev.items || [])) : [];
+
+  const clienteOptions = clienti.map(c =>
+    `<option value="${c.id}" ${(prev?.clienteId||preselClienteId)===c.id?'selected':''}>${c.cognome} ${c.nome}${c.azienda?' — '+c.azienda:''}</option>`
+  ).join('');
+
+  openModal(`
+    <div class="modal-header">
+      <h2 class="modal-title">${id ? 'Modifica Preventivo' : 'Nuovo Preventivo'}</h2>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cliente *</label>
+          <select class="form-select" id="pv-cliente">
+            <option value="">— Seleziona cliente —</option>
+            ${clienteOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stato</label>
+          <select class="form-select" id="pv-stato">
+            <option value="bozza" ${(prev?.stato||'bozza')==='bozza'?'selected':''}>Bozza</option>
+            <option value="inviato" ${prev?.stato==='inviato'?'selected':''}>Inviato</option>
+            <option value="accettato" ${prev?.stato==='accettato'?'selected':''}>Accettato</option>
+            <option value="rifiutato" ${prev?.stato==='rifiutato'?'selected':''}>Rifiutato</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note preventivo</label>
+        <textarea class="form-textarea" id="pv-note" placeholder="Condizioni particolari, note per il cliente...">${prev?.note||''}</textarea>
+      </div>
+
+      <hr class="divider">
+      <div class="section-header">
+        <strong>Voci del Preventivo</strong>
+        <button class="btn btn-secondary btn-sm" onclick="openProductPicker()">+ Aggiungi Prodotto</button>
+      </div>
+      <div id="pv-items-list"></div>
+
+      <hr class="divider">
+      <div id="pv-totale-box"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="savePreventivo('${id||''}')">💾 Salva Preventivo</button>
+    </div>`, true);
+
+  renderPreventivoItems();
+}
+
+function renderPreventivoItems() {
+  const list = document.getElementById('pv-items-list');
+  const totBox = document.getElementById('pv-totale-box');
+  if (!list) return;
+
+  if (!preventivoItems.length) {
+    list.innerHTML = `<div class="empty-state" style="padding:24px"><p>Nessun prodotto aggiunto. Clicca "+ Aggiungi Prodotto"</p></div>`;
+    if (totBox) totBox.innerHTML = '';
+    return;
+  }
+
+  let subtot = 0;
+  list.innerHTML = preventivoItems.map((it, i) => {
+    const lineTotal = (it.prezzo * it.qty) || 0;
+    subtot += lineTotal;
+    return `
+    <div class="quote-item">
+      <div>
+        <div class="quote-item-name">${it.nome}</div>
+        <div class="quote-item-cat">${it.categoria||''} · ${it.um||'cad.'} · ${fmt(it.prezzo)} cad.</div>
+        <input class="form-input" style="margin-top:6px;font-size:0.8rem" placeholder="Note riga..." value="${it.note||''}" oninput="updateItemNote(${i},this.value)">
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.72rem">Qtà</label>
+        <input class="qty-input form-input" type="number" min="1" value="${it.qty||1}" onchange="updateItemQty(${i},this.value)">
+      </div>
+      <div class="item-total">${fmt(lineTotal)}</div>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem(${i})">✕</button>
+    </div>`;
+  }).join('');
+
+  const iva = companyData.iva || 22;
+  const ivaAmt = subtot * iva / 100;
+  const totale = subtot + ivaAmt;
+
+  totBox.innerHTML = `
+    <div class="totale-box">
+      <div class="totale-row" style="margin-bottom:8px"><span>Imponibile</span><span>${fmt(subtot)}</span></div>
+      <div class="totale-row" style="margin-bottom:12px"><span>IVA ${iva}%</span><span>${fmt(ivaAmt)}</span></div>
+      <div class="totale-row"><span style="font-size:0.9rem">TOTALE</span><span class="totale-final">${fmt(totale)}</span></div>
+    </div>`;
+}
+
+function updateItemQty(i, v) { preventivoItems[i].qty = parseFloat(v) || 1; renderPreventivoItems(); }
+function updateItemNote(i, v) { preventivoItems[i].note = v; }
+function removeItem(i) { preventivoItems.splice(i, 1); renderPreventivoItems(); }
+
+// ── PRODUCT PICKER ──
+function openProductPicker() {
+  let selected = [];
+  openModal(`
+    <div class="modal-header">
+      <h2 class="modal-title">Aggiungi Prodotti</h2>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-box" style="margin-bottom:16px">
+        <span class="search-icon">🔍</span>
+        <input class="form-input" placeholder="Cerca..." oninput="filterPickerProducts(this.value)">
+      </div>
+      <div class="product-grid" id="picker-grid"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="confirmProductPick()">Aggiungi Selezionati</button>
+    </div>`);
+
+  window._pickerSelected = {};
+  renderPickerGrid(prodotti);
+}
+
+function renderPickerGrid(list) {
+  const grid = document.getElementById('picker-grid');
+  if (!grid) return;
+  if (!list.length) { grid.innerHTML = `<div class="empty-state"><p>Nessun prodotto trovato</p></div>`; return; }
+  grid.innerHTML = list.map(p => `
+    <div class="product-pick-card ${window._pickerSelected[p.id]?'selected':''}" onclick="togglePick('${p.id}')">
+      <div class="product-pick-name">${p.nome}</div>
+      <div class="product-pick-cat">${p.categoria||''} · ${p.materiale||''}</div>
+      <div class="product-pick-price">${fmt(p.prezzo)} / ${p.um||'cad.'}</div>
+    </div>`).join('');
+}
+
+function togglePick(id) {
+  window._pickerSelected[id] = !window._pickerSelected[id];
+  renderPickerGrid(prodotti);
+}
+
+function filterPickerProducts(q) {
+  renderPickerGrid(prodotti.filter(p => (p.nome+p.categoria+p.materiale).toLowerCase().includes(q.toLowerCase())));
+}
+
+function confirmProductPick() {
+  const picked = Object.keys(window._pickerSelected).filter(id => window._pickerSelected[id]);
+  picked.forEach(id => {
+    const p = prodotti.find(x => x.id === id);
+    if (p && !preventivoItems.find(it => it.prodottoId === id)) {
+      preventivoItems.push({ prodottoId: id, nome: p.nome, categoria: p.categoria, materiale: p.materiale, prezzo: p.prezzo, um: p.um, qty: 1, note: '' });
+    }
+  });
+  closeModal();
+  renderPreventivoItems();
+}
+
+async function savePreventivo(id) {
+  const clienteId = document.getElementById('pv-cliente').value;
+  if (!clienteId) { toast('Seleziona un cliente', 'error'); return; }
+  if (!preventivoItems.length) { toast('Aggiungi almeno un prodotto', 'error'); return; }
+
+  const iva = companyData.iva || 22;
+  const subtotale = preventivoItems.reduce((s, it) => s + (it.prezzo * it.qty), 0);
+  const ivaAmt = subtotale * iva / 100;
+  const totaleFinale = subtotale + ivaAmt;
+  const cl = clienti.find(c => c.id === clienteId);
+
+  const data = {
+    clienteId,
+    clienteNome: cl ? `${cl.cognome} ${cl.nome}` : '',
+    stato: document.getElementById('pv-stato').value,
+    note: document.getElementById('pv-note').value,
+    items: preventivoItems,
+    subtotale, ivaAmt, totaleFinale,
+    ivaPerc: iva,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (id) {
+    await db.collection('preventivi').doc(id).update(data);
+    toast('Preventivo aggiornato!', 'success');
+  } else {
+    // get next number
+    const countSnap = await db.collection('preventivi').get();
+    data.numero = String(countSnap.size + 1).padStart(4, '0');
+    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('preventivi').add(data);
+    toast('Preventivo salvato!', 'success');
+  }
+  closeModal();
+  renderPreventivi();
+}
+
+async function deletePreventivo(id) {
+  if (!confirm('Eliminare questo preventivo?')) return;
+  await db.collection('preventivi').doc(id).delete();
+  toast('Preventivo eliminato', 'info');
+  renderPreventivi();
+}
+
+// ════════════════════════════════════════════
+//  PDF GENERATION
+// ════════════════════════════════════════════
+async function generatePDF(prevId) {
+  await Promise.all([loadPreventivi(), loadClienti(), loadCompany()]);
+  const prev = preventivi.find(p => p.id === prevId);
+  if (!prev) { toast('Preventivo non trovato', 'error'); return; }
+  const cl = clienti.find(c => c.id === prev.clienteId) || {};
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210; const M = 18;
+  let y = M;
+
+  // HEADER BG
+  doc.setFillColor(45, 43, 39);
+  doc.rect(0, 0, W, 48, 'F');
+
+  // Logo or company name
+  if (companyData.logoBase64) {
+    try {
+      const ext = companyData.logoBase64.includes('png') ? 'PNG' : 'JPEG';
+      doc.addImage(companyData.logoBase64, ext, M, 10, 60, 28, '', 'FAST');
+    } catch(e) {
+      doc.setTextColor(201, 168, 76);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyData.nome || 'InfissiPro', M, 26);
+    }
+  } else {
+    doc.setTextColor(201, 168, 76);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyData.nome || 'InfissiPro', M, 28);
+  }
+
+  // Header right: preventivo info
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const rightX = W - M;
+  doc.text(`PREVENTIVO N° ${prev.numero || prevId.slice(-6).toUpperCase()}`, rightX, 18, { align: 'right' });
+  doc.text(`Data: ${fmtDate(prev.createdAt)}`, rightX, 25, { align: 'right' });
+  doc.setTextColor(201, 168, 76);
+  const statusLabels = { bozza:'BOZZA', inviato:'INVIATO', accettato:'ACCETTATO', rifiutato:'RIFIUTATO' };
+  doc.text(statusLabels[prev.stato||'bozza'], rightX, 34, { align: 'right' });
+
+  y = 60;
+
+  // Company & Client info
+  doc.setFillColor(240, 237, 232);
+  doc.rect(M, y, (W-2*M)/2-6, 44, 'F');
+  doc.rect((W+6)/2, y, (W-2*M)/2-6, 44, 'F');
+
+  // Dati azienda
+  doc.setTextColor(45, 43, 39);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DATI FORNITORE', M+5, y+8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 55, 50);
+  const compLines = [
+    companyData.nome||'',
+    companyData.indirizzo||'',
+    companyData.telefono||'', companyData.email||'',
+    companyData.piva ? `P.IVA: ${companyData.piva}` : ''
+  ].filter(Boolean);
+  compLines.forEach((line, i) => doc.text(line, M+5, y+14+i*6));
+
+  // Dati cliente
+  const cx = (W+6)/2 + 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(45, 43, 39);
+  doc.text('DATI CLIENTE', cx, y+8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 55, 50);
+  const clLines = [
+    cl.azienda||'',
+    `${cl.cognome||''} ${cl.nome||''}`.trim(),
+    cl.indirizzo||'', cl.citta||'',
+    cl.telefono||'', cl.email||''
+  ].filter(Boolean);
+  clLines.forEach((line, i) => doc.text(line, cx, y+14+i*6));
+
+  y += 54;
+
+  // TABLE HEADER
+  doc.setFillColor(45, 43, 39);
+  doc.rect(M, y, W-2*M, 9, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DESCRIZIONE', M+4, y+6);
+  doc.text('CAT.', M+82, y+6);
+  doc.text('QTÀ', M+108, y+6, { align: 'right' });
+  doc.text('PREZZO U.', M+130, y+6, { align: 'right' });
+  doc.text('TOTALE', W-M-4, y+6, { align: 'right' });
+  y += 9;
+
+  // TABLE ROWS
+  let subtot = 0;
+  (prev.items || []).forEach((it, i) => {
+    const lineTotal = it.prezzo * it.qty;
+    subtot += lineTotal;
+    if (i % 2 === 0) { doc.setFillColor(247, 245, 242); doc.rect(M, y, W-2*M, 10, 'F'); }
+    else { doc.setFillColor(255, 255, 255); doc.rect(M, y, W-2*M, 10, 'F'); }
+    doc.setTextColor(30, 26, 23);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+    doc.text(it.nome.substring(0,35), M+4, y+7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.setTextColor(100, 95, 90);
+    doc.text(it.categoria||'', M+82, y+7);
+    doc.text(String(it.qty), M+108, y+7, { align: 'right' });
+    doc.text(fmt(it.prezzo), M+130, y+7, { align: 'right' });
+    doc.setTextColor(30, 26, 23);
+    doc.setFont('helvetica', 'bold');
+    doc.text(fmt(lineTotal), W-M-4, y+7, { align: 'right' });
+    if (it.note) {
+      y += 10;
+      doc.setFillColor(i%2===0 ? 247:255, i%2===0?245:255, i%2===0?242:255);
+      doc.rect(M, y, W-2*M, 6, 'F');
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(130,120,110);
+      doc.text(`↳ ${it.note}`, M+6, y+4.5);
+      y += 6;
+    } else { y += 10; }
+  });
+
+  // TOTALI
+  const ivaAmt = subtot * (prev.ivaPerc||22) / 100;
+  const totale = subtot + ivaAmt;
+
+  y += 4;
+  doc.setDrawColor(230, 225, 218);
+  doc.line(M, y, W-M, y); y += 2;
+
+  const totX = W - M - 4;
+  const labX = W - M - 60;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80,75,70);
+  doc.text('Imponibile:', labX, y+7); doc.text(fmt(subtot), totX, y+7, { align: 'right' });
+  doc.text(`IVA ${prev.ivaPerc||22}%:`, labX, y+15); doc.text(fmt(ivaAmt), totX, y+15, { align: 'right' });
+
+  y += 18;
+  doc.setFillColor(45, 43, 39);
+  doc.roundedRect(labX-5, y, (W-M-4)-labX+9, 14, 3, 3, 'F');
+  doc.setTextColor(201, 168, 76);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.text('TOTALE', labX, y+9.5);
+  doc.text(fmt(totale), totX, y+9.5, { align: 'right' });
+
+  // NOTE
+  if (prev.note || companyData.note) {
+    y += 22;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(80,75,70);
+    doc.text('NOTE:', M, y);
+    doc.setFont('helvetica', 'normal');
+    const noteText = [prev.note, companyData.note].filter(Boolean).join(' — ');
+    const lines = doc.splitTextToSize(noteText, W-2*M);
+    doc.text(lines, M, y+6);
+  }
+
+  // FOOTER
+  const pageH = 297;
+  doc.setFillColor(240, 237, 232);
+  doc.rect(0, pageH-16, W, 16, 'F');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120,115,110);
+  const footParts = [companyData.nome, companyData.indirizzo, companyData.telefono, companyData.sito].filter(Boolean);
+  doc.text(footParts.join('  ·  '), W/2, pageH-8, { align: 'center' });
+
+  doc.save(`Preventivo_${prev.numero||prevId.slice(-6).toUpperCase()}.pdf`);
+  toast('PDF generato!', 'success');
+}
+
+// ════════════════════════════════════════════
+//  EMAIL
+// ════════════════════════════════════════════
+async function sendEmail(prevId) {
+  await Promise.all([loadPreventivi(), loadClienti(), loadCompany()]);
+  const prev = preventivi.find(p => p.id === prevId);
+  const cl = clienti.find(c => c.id === prev?.clienteId);
+
+  const to = cl?.email || '';
+  const subject = encodeURIComponent(`Preventivo N° ${prev?.numero||prevId.slice(-6).toUpperCase()} – ${companyData.nome||'InfissiPro'}`);
+  const body = encodeURIComponent(
+`Gentile ${cl?.cognome||'Cliente'},
+
+in allegato troverà il preventivo N° ${prev?.numero||'—'} relativo alla fornitura e installazione infissi.
+
+Totale preventivo: ${fmt(prev?.totaleFinale)}
+
+Per qualsiasi informazione non esiti a contattarci.
+
+Cordiali saluti,
+${companyData.nome||''}
+${companyData.telefono||''}
+${companyData.email||''}`
+  );
+
+  window.open(`mailto:${to}?subject=${subject}&body=${body}`);
+  
+  // aggiorna stato a "inviato"
+  if (prev?.stato === 'bozza') {
+    await db.collection('preventivi').doc(prevId).update({ stato: 'inviato', updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    toast('Email aperta. Stato aggiornato a "Inviato"', 'success');
+    renderPreventivi();
+  }
+}
+
+// ════════════════════════════════════════════
+//  DASHBOARD
+// ════════════════════════════════════════════
+async function renderDashboard() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="openPreventivoModal()">
+      + Nuovo Preventivo
+    </button>`;
+
+  await Promise.all([loadPreventivi(), loadClienti(), loadCompany()]);
+
+  const mese = new Date();
+  const prevMese = preventivi.filter(p => {
+    const d = p.createdAt?.toDate ? p.createdAt.toDate() : new Date();
+    return d.getMonth() === mese.getMonth() && d.getFullYear() === mese.getFullYear();
+  });
+  const totMese = prevMese.reduce((s, p) => s + (p.totaleFinale||0), 0);
+  const accettati = preventivi.filter(p => p.stato === 'accettato');
+  const inviati = preventivi.filter(p => p.stato === 'inviato');
+
+  document.getElementById('page-content').innerHTML = `
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Preventivi totali</div>
+      <div class="stat-value">${preventivi.length}</div>
+      <div class="stat-sub">in archivio</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Questo mese</div>
+      <div class="stat-value">${prevMese.length}</div>
+      <div class="stat-sub">${fmt(totMese)} di valore</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Accettati</div>
+      <div class="stat-value">${accettati.length}</div>
+      <div class="stat-sub">${fmt(accettati.reduce((s,p)=>s+(p.totaleFinale||0),0))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Da seguire</div>
+      <div class="stat-value">${inviati.length}</div>
+      <div class="stat-sub">in attesa risposta</div>
+    </div>
+  </div>
+
+  <div class="recent-grid">
+    <div class="card" style="padding:0">
+      <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <h3 style="font-size:1rem">Ultimi Preventivi</h3>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('preventivi')">Vedi tutti →</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>N°</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead>
+          <tbody>
+            ${preventivi.slice(0,6).map(p => {
+              const cl = clienti.find(c => c.id === p.clienteId);
+              return `<tr>
+                <td><strong>#${p.numero||p.id.slice(-4)}</strong></td>
+                <td>${cl?`${cl.cognome} ${cl.nome}`:p.clienteNome||'—'}</td>
+                <td>${fmt(p.totaleFinale)}</td>
+                <td>${statusBadge(p.stato||'bozza')}</td>
+              </tr>`;
+            }).join('') || `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">Nessun preventivo ancora</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <h3 style="font-size:1rem;margin-bottom:16px">Azioni rapide</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-primary" style="justify-content:center" onclick="openPreventivoModal()">📋 Nuovo Preventivo</button>
+          <button class="btn btn-secondary" style="justify-content:center" onclick="navigate('clienti');setTimeout(openClienteModal,300)">👤 Nuovo Cliente</button>
+          <button class="btn btn-secondary" style="justify-content:center" onclick="navigate('prodotti');setTimeout(openProdottoModal,300)">📦 Nuovo Prodotto</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;margin-bottom:12px">Clienti recenti</h3>
+        ${clienti.slice(0,5).map(c => `
+          <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:0.88rem">${c.cognome} ${c.nome}</div>
+              ${c.azienda?`<div style="font-size:0.75rem;color:var(--text3)">${c.azienda}</div>`:''}
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="newPreventivoForCliente('${c.id}')">+</button>
+          </div>`).join('') || `<p style="color:var(--text3);font-size:0.85rem">Nessun cliente ancora</p>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+loadCompany();
+</script>
+</body>
+</html>
