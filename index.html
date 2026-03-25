@@ -825,10 +825,15 @@ function renderProdottiTable(list) {
   }
   tbody.innerHTML = list.map(p => `
     <tr>
-      <td><strong>${p.nome}</strong>${p.descrizione?`<br><small style="color:var(--text3)">${p.descrizione.substring(0,60)}${p.descrizione.length>60?'...':''}</small>`:''}</td>
+      <td style="display:flex;align-items:center;gap:12px">
+        <div style="width:48px;height:40px;border-radius:6px;overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+          ${p.foto ? `<img src="${p.foto}" style="width:100%;height:100%;object-fit:cover">` : `<span style="font-size:1.2rem">📦</span>`}
+        </div>
+        <div><strong>${p.nome}</strong>${p.descrizione?`<br><small style="color:var(--text3)">${p.descrizione.substring(0,60)}${p.descrizione.length>60?'...':''}</small>`:''}</div>
+      </td>
       <td><span class="chip">${p.categoria||'—'}</span></td>
       <td>${p.materiale||'—'}</td>
-      <td><strong>${fmt(p.prezzo)}</strong></td>
+      <td><strong>${fmt(p.prezzo)}</strong><br><small style="color:var(--text3)">${p.um||'pz'}</small></td>
       <td style="text-align:center">
         <button class="btn btn-ghost btn-sm btn-icon" onclick="openProdottoModal('${p.id}')" title="Modifica">✏️</button>
         <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteProdotto('${p.id}')" title="Elimina">🗑️</button>
@@ -851,6 +856,7 @@ function filterByCat(cat, btn) {
 
 function openProdottoModal(id = null, fromPicker = false) {
   const p = id ? prodotti.find(x => x.id === id) : {};
+  window._prodFotoBase64 = p.foto || null;
   openModal(`
     <div class="modal-header">
       <h2 class="modal-title">${id ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2>
@@ -882,22 +888,55 @@ function openProdottoModal(id = null, fromPicker = false) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Unità di misura</label>
+        <label class="form-label">Unità di misura / Tipo vendita</label>
         <select class="form-select" id="p-um">
-          <option value="cadauno" ${(p.um||'cadauno')==='cadauno'?'selected':''}>Cadauno (cad.)</option>
-          <option value="mq" ${p.um==='mq'?'selected':''}>Metro quadro (m²)</option>
-          <option value="ml" ${p.um==='ml'?'selected':''}>Metro lineare (ml)</option>
+          <option value="pz" ${(p.um||'pz')==='pz'?'selected':''}>A pezzo (pz) — prezzo cadauno</option>
+          <option value="mq" ${p.um==='mq'?'selected':''}>A metro quadro (m²) — prezzo per m²</option>
+          <option value="ml" ${p.um==='ml'?'selected':''}>A metro lineare (ml) — prezzo per ml</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Descrizione</label>
-        <textarea class="form-textarea" id="p-desc" placeholder="Descrizione tecnica, caratteristiche...">${p.descrizione||''}</textarea>
+        <label class="form-label">Descrizione prodotto</label>
+        <textarea class="form-textarea" id="p-desc" placeholder="Descrizione tecnica, caratteristiche, note sul prodotto..." style="min-height:100px">${p.descrizione||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto prodotto</label>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div id="p-foto-preview" style="width:100px;height:80px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;cursor:pointer" onclick="document.getElementById('p-foto-file').click()">
+            ${p.foto ? `<img src="${p.foto}" style="width:100%;height:100%;object-fit:cover">` : `<span style="font-size:1.5rem;color:var(--text3)">📷</span>`}
+          </div>
+          <div>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('p-foto-file').click()">📷 Carica foto</button>
+            ${p.foto ? `<button class="btn btn-ghost btn-sm" onclick="removeProdFoto()" style="color:var(--danger)">✕ Rimuovi</button>` : ''}
+            <div style="color:var(--text3);font-size:0.75rem;margin-top:6px">JPG, PNG — max 2MB<br>Appare nel catalogo prodotti</div>
+          </div>
+        </div>
+        <input type="file" id="p-foto-file" accept="image/*" style="display:none" onchange="handleProdFoto(event)">
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
       <button class="btn btn-primary" onclick="saveProdotto('${id||''}', ${fromPicker})">💾 Salva Prodotto</button>
     </div>`);
+}
+
+function handleProdFoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2*1024*1024) { toast('Foto troppo grande (max 2MB)', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    window._prodFotoBase64 = ev.target.result;
+    const prev = document.getElementById('p-foto-preview');
+    if (prev) prev.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+    toast('Foto caricata — salva per confermare', 'info');
+  };
+  reader.readAsDataURL(file);
+}
+function removeProdFoto() {
+  window._prodFotoBase64 = null;
+  const prev = document.getElementById('p-foto-preview');
+  if (prev) prev.innerHTML = `<span style="font-size:1.5rem;color:var(--text3)">📷</span>`;
 }
 
 async function saveProdotto(id, fromPicker = false) {
@@ -910,6 +949,7 @@ async function saveProdotto(id, fromPicker = false) {
     materiale: document.getElementById('p-mat').value,
     um: document.getElementById('p-um').value,
     descrizione: document.getElementById('p-desc').value,
+    foto: window._prodFotoBase64 || null,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   let newDocId = id;
@@ -929,7 +969,7 @@ async function saveProdotto(id, fromPicker = false) {
     // auto-select the new product and re-open picker
     const newProd = prodotti.find(p => p.id === newDocId);
     if (newProd) {
-      preventivoItems.push({ prodottoId: newProd.id, nome: newProd.nome, categoria: newProd.categoria, materiale: newProd.materiale, prezzo: newProd.prezzo, um: newProd.um, qty: 1, note: '' });
+      preventivoItems.push({ prodottoId: newProd.id, nome: newProd.nome, categoria: newProd.categoria, materiale: newProd.materiale, prezzo: newProd.prezzo, um: newProd.um || 'pz', foto: newProd.foto || null, descrizione: newProd.descrizione || '', qty: 1, larghezza: null, altezza: null, descrizioneRiga: '' });
       renderPreventivoItems();
       toast('Prodotto creato e aggiunto al preventivo!', 'success');
     }
@@ -1198,7 +1238,9 @@ function filterPreventivi(q) {
 }
 
 // ── PREVENTIVO MODAL (editor) ──
-function openPreventivoModal(id = null, preselClienteId = null) {
+async function openPreventivoModal(id = null, preselClienteId = null) {
+  // Assicura che i prodotti siano sempre caricati prima di aprire
+  if (!prodotti.length) await loadProdotti();
   const prev = id ? preventivi.find(x => x.id === id) : null;
   preventivoItems = prev ? JSON.parse(JSON.stringify(prev.items || [])) : [];
   _prevSconto = prev ? { tipo: prev.scontoTipo||'nessuno', valore: prev.scontoValore||0 } : { tipo: 'nessuno', valore: 0 };
@@ -1254,6 +1296,18 @@ function openPreventivoModal(id = null, preselClienteId = null) {
   renderPreventivoItems();
 }
 
+function calcLineTotal(it) {
+  const um = it.um || 'pz';
+  if (um === 'mq') {
+    const mq = ((parseFloat(it.larghezza)||0) * (parseFloat(it.altezza)||0));
+    return parseFloat((it.prezzo * mq * (it.qty||1)).toFixed(2));
+  } else if (um === 'ml') {
+    return parseFloat((it.prezzo * (parseFloat(it.larghezza)||0) * (it.qty||1)).toFixed(2));
+  } else {
+    return parseFloat((it.prezzo * (it.qty||1)).toFixed(2));
+  }
+}
+
 function renderPreventivoItems() {
   const list = document.getElementById('pv-items-list');
   const totBox = document.getElementById('pv-totale-box');
@@ -1267,25 +1321,68 @@ function renderPreventivoItems() {
 
   let subtot = 0;
   list.innerHTML = preventivoItems.map((it, i) => {
-    const lineTotal = (it.prezzo * it.qty) || 0;
+    const um = it.um || 'pz';
+    const lineTotal = calcLineTotal(it);
     subtot += lineTotal;
+
+    // Misure fields based on UM
+    let misureHtml = '';
+    if (um === 'mq') {
+      const mq = ((parseFloat(it.larghezza)||0) * (parseFloat(it.altezza)||0)).toFixed(2);
+      misureHtml = `
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:4px">
+            <label style="font-size:0.72rem;color:var(--text2);white-space:nowrap">Larg. (m)</label>
+            <input class="form-input" type="number" min="0" step="0.01" style="width:72px;padding:6px 8px;font-size:0.82rem"
+              value="${it.larghezza||''}" placeholder="0.00"
+              oninput="updateItemDim(${i},'larghezza',this.value)">
+          </div>
+          <span style="color:var(--text3);font-size:0.9rem">×</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <label style="font-size:0.72rem;color:var(--text2);white-space:nowrap">Alt. (m)</label>
+            <input class="form-input" type="number" min="0" step="0.01" style="width:72px;padding:6px 8px;font-size:0.82rem"
+              value="${it.altezza||''}" placeholder="0.00"
+              oninput="updateItemDim(${i},'altezza',this.value)">
+          </div>
+          <span style="background:var(--gold-light);color:var(--gold-dark);font-size:0.75rem;font-weight:700;padding:3px 8px;border-radius:4px">${mq} m²</span>
+        </div>`;
+    } else if (um === 'ml') {
+      misureHtml = `
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <label style="font-size:0.72rem;color:var(--text2);white-space:nowrap">Lungh. (m)</label>
+          <input class="form-input" type="number" min="0" step="0.01" style="width:80px;padding:6px 8px;font-size:0.82rem"
+            value="${it.larghezza||''}" placeholder="0.00"
+            oninput="updateItemDim(${i},'larghezza',this.value)">
+        </div>`;
+    }
+
     return `
-    <div class="quote-item">
+    <div class="quote-item" style="grid-template-columns:1fr auto auto;gap:10px">
       <div>
-        <div class="quote-item-name">${it.nome}</div>
-        <div class="quote-item-cat">${it.categoria||''} · ${it.um||'cad.'} · ${fmt(it.prezzo)} cad.</div>
-        <input class="form-input" style="margin-top:6px;font-size:0.8rem" placeholder="Note riga..." value="${it.note||''}" oninput="updateItemNote(${i},this.value)">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${it.foto ? `<img src="${it.foto}" style="width:36px;height:30px;object-fit:cover;border-radius:4px;flex-shrink:0">` : ''}
+          <div>
+            <div class="quote-item-name">${it.nome}</div>
+            <div class="quote-item-cat">${it.categoria||''} · <strong>${um === 'mq' ? 'm²' : um === 'ml' ? 'ml' : 'pz'}</strong> · ${fmt(it.prezzo)}/${um === 'mq' ? 'm²' : um === 'ml' ? 'ml' : 'pz'}</div>
+          </div>
+        </div>
+        ${misureHtml}
+        <input class="form-input" style="margin-top:8px;font-size:0.8rem" placeholder="Descrizione riga (es. camera da letto, finestra sx...)" value="${it.descrizioneRiga||''}" oninput="updateItemDescRiga(${i},this.value)">
       </div>
-      <div>
-        <label class="form-label" style="font-size:0.72rem">Qtà</label>
-        <input class="qty-input form-input" type="number" min="1" value="${it.qty||1}" onchange="updateItemQty(${i},this.value)">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <label class="form-label" style="font-size:0.72rem">${um === 'mq' ? 'N. finestre' : um === 'ml' ? 'N. pezzi' : 'Qtà'}</label>
+        <input class="qty-input form-input" type="number" min="1" value="${it.qty||1}" onchange="updateItemQty(${i},this.value)" style="width:60px;text-align:center">
       </div>
-      <div class="item-total">${fmt(lineTotal)}</div>
-      <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem(${i})">✕</button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div class="item-total">${fmt(lineTotal)}</div>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem(${i})">✕</button>
+      </div>
     </div>`;
   }).join('');
 
   const iva = companyData.iva || 22;
+  // ricalcola subtot con calcLineTotal per sicurezza
+  subtot = preventivoItems.reduce((s, it) => s + calcLineTotal(it), 0);
   // calcola sconto
   let scontoAmt = 0;
   if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) {
@@ -1332,7 +1429,8 @@ function updateScontoTipo(v) { _prevSconto.tipo = v; if(v==='nessuno') _prevScon
 function updateScontoValore(v) { _prevSconto.valore = parseFloat(v)||0; renderPreventivoItems(); }
 
 function updateItemQty(i, v) { preventivoItems[i].qty = parseFloat(v) || 1; renderPreventivoItems(); }
-function updateItemNote(i, v) { preventivoItems[i].note = v; }
+function updateItemDim(i, campo, v) { preventivoItems[i][campo] = parseFloat(v)||0; renderPreventivoItems(); }
+function updateItemDescRiga(i, v) { preventivoItems[i].descrizioneRiga = v; }
 function removeItem(i) { preventivoItems.splice(i, 1); renderPreventivoItems(); }
 
 // ── PRODUCT PICKER ──
@@ -1369,9 +1467,11 @@ function renderPickerGrid(list) {
   if (!list.length) { grid.innerHTML = `<div class="empty-state"><p>Nessun prodotto trovato</p></div>`; return; }
   grid.innerHTML = list.map(p => `
     <div class="product-pick-card ${window._pickerSelected[p.id]?'selected':''}" onclick="togglePick('${p.id}')">
+      ${p.foto ? `<div style="height:80px;border-radius:6px;overflow:hidden;margin-bottom:8px;background:var(--surface2)"><img src="${p.foto}" style="width:100%;height:100%;object-fit:cover"></div>` : ''}
       <div class="product-pick-name">${p.nome}</div>
       <div class="product-pick-cat">${p.categoria||''} · ${p.materiale||''}</div>
-      <div class="product-pick-price">${fmt(p.prezzo)} / ${p.um||'cad.'}</div>
+      <div class="product-pick-price">${fmt(p.prezzo)} / ${p.um||'pz'}</div>
+      ${p.descrizione ? `<div style="font-size:0.72rem;color:var(--text3);margin-top:4px;line-height:1.4">${p.descrizione.substring(0,80)}${p.descrizione.length>80?'...':''}</div>` : ''}
     </div>`).join('');
 }
 
@@ -1390,7 +1490,12 @@ function confirmProductPick() {
   picked.forEach(id => {
     const p = prodotti.find(x => x.id === id);
     if (p && !preventivoItems.find(it => it.prodottoId === id)) {
-      preventivoItems.push({ prodottoId: id, nome: p.nome, categoria: p.categoria, materiale: p.materiale, prezzo: p.prezzo, um: p.um, qty: 1, note: '' });
+      preventivoItems.push({
+        prodottoId: id, nome: p.nome, categoria: p.categoria,
+        materiale: p.materiale, prezzo: p.prezzo, um: p.um || 'pz',
+        foto: p.foto || null, descrizione: p.descrizione || '',
+        qty: 1, larghezza: null, altezza: null, descrizioneRiga: ''
+      });
     }
   });
   closeModal(); // chiude solo il picker, la modal preventivo rimane aperta
@@ -1404,7 +1509,7 @@ async function savePreventivo(id) {
   if (!preventivoItems.length) { toast('Aggiungi almeno un prodotto', 'error'); return; }
 
   const iva = companyData.iva || 22;
-  const subtotale = preventivoItems.reduce((s, it) => s + (it.prezzo * it.qty), 0);
+  const subtotale = preventivoItems.reduce((s, it) => s + calcLineTotal(it), 0);
   let scontoAmt = 0;
   if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) scontoAmt = subtotale * _prevSconto.valore / 100;
   else if (_prevSconto.tipo === 'fisso' && _prevSconto.valore > 0) scontoAmt = Math.min(_prevSconto.valore, subtotale);
@@ -1549,29 +1654,40 @@ async function generatePDF(prevId) {
   // TABLE ROWS
   let subtot = 0;
   (prev.items || []).forEach((it, i) => {
-    const lineTotal = it.prezzo * it.qty;
+    const um = it.um || 'pz';
+    let lineTotal = 0;
+    let misuraStr = '';
+    if (um === 'mq') {
+      const mq = (parseFloat(it.larghezza)||0) * (parseFloat(it.altezza)||0);
+      lineTotal = parseFloat((it.prezzo * mq * (it.qty||1)).toFixed(2));
+      misuraStr = `${it.larghezza||0}×${it.altezza||0}m = ${mq.toFixed(2)}m²`;
+    } else if (um === 'ml') {
+      lineTotal = parseFloat((it.prezzo * (parseFloat(it.larghezza)||0) * (it.qty||1)).toFixed(2));
+      misuraStr = `${it.larghezza||0} ml`;
+    } else {
+      lineTotal = parseFloat((it.prezzo * (it.qty||1)).toFixed(2));
+    }
     subtot += lineTotal;
-    if (i % 2 === 0) { doc.setFillColor(247, 245, 242); doc.rect(M, y, W-2*M, 10, 'F'); }
-    else { doc.setFillColor(255, 255, 255); doc.rect(M, y, W-2*M, 10, 'F'); }
+
+    const rowH = (it.descrizioneRiga || misuraStr) ? 14 : 10;
+    if (i % 2 === 0) { doc.setFillColor(247, 245, 242); doc.rect(M, y, W-2*M, rowH, 'F'); }
+    else { doc.setFillColor(255, 255, 255); doc.rect(M, y, W-2*M, rowH, 'F'); }
     doc.setTextColor(30, 26, 23);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-    doc.text(it.nome.substring(0,35), M+4, y+7);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.text(it.nome.substring(0,35), M+4, y+6);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
     doc.setTextColor(100, 95, 90);
-    doc.text(it.categoria||'', M+82, y+7);
-    doc.text(String(it.qty), M+108, y+7, { align: 'right' });
-    doc.text(fmt(it.prezzo), M+130, y+7, { align: 'right' });
+    // descrizione riga e misure sotto il nome
+    const subText = [it.descrizioneRiga, misuraStr].filter(Boolean).join('  |  ');
+    if (subText) doc.text(subText.substring(0,55), M+4, y+11.5);
+    doc.setFontSize(8);
+    doc.text(it.categoria||'', M+82, y+6);
+    doc.text(`${it.qty||1} ${um}`, M+108, y+6, { align: 'right' });
+    doc.text(fmt(it.prezzo)+`/${um}`, M+130, y+6, { align: 'right' });
     doc.setTextColor(30, 26, 23);
     doc.setFont('helvetica', 'bold');
-    doc.text(fmt(lineTotal), W-M-4, y+7, { align: 'right' });
-    if (it.note) {
-      y += 10;
-      doc.setFillColor(i%2===0 ? 247:255, i%2===0?245:255, i%2===0?242:255);
-      doc.rect(M, y, W-2*M, 6, 'F');
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(130,120,110);
-      doc.text(`↳ ${it.note}`, M+6, y+4.5);
-      y += 6;
-    } else { y += 10; }
+    doc.text(fmt(lineTotal), W-M-4, y+6, { align: 'right' });
+    y += rowH;
   });
 
   // TOTALI
