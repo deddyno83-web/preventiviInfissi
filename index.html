@@ -1381,7 +1381,7 @@ function renderPreventivoItems() {
               value="${altMm||''}" placeholder="1500"
               oninput="updateItemDim(${i},'altezza',this.value)">
           </div>
-          <span style="background:var(--gold-light);color:var(--gold-dark);font-size:0.78rem;font-weight:700;padding:4px 10px;border-radius:4px">= ${mqDisp} m²</span>
+          <span id="mq-badge-${i}" style="background:var(--gold-light);color:var(--gold-dark);font-size:0.78rem;font-weight:700;padding:4px 10px;border-radius:4px">= ${mqDisp} m²</span>
         </div>`;
     } else if (um === 'ml') {
       const lungMm = parseInt(it.larghezza)||0;
@@ -1391,7 +1391,7 @@ function renderPreventivoItems() {
           <input class="form-input" type="number" min="0" step="1" style="width:90px;padding:6px 8px;font-size:0.82rem"
             value="${lungMm||''}" placeholder="1000"
             oninput="updateItemDim(${i},'larghezza',this.value)">
-          <span style="background:var(--gold-light);color:var(--gold-dark);font-size:0.78rem;font-weight:700;padding:4px 10px;border-radius:4px">= ${(lungMm/1000).toFixed(2)} ml</span>
+          <span id="mq-badge-${i}" style="background:var(--gold-light);color:var(--gold-dark);font-size:0.78rem;font-weight:700;padding:4px 10px;border-radius:4px">= ${(lungMm/1000).toFixed(2)} ml</span>
         </div>`;
     }
 
@@ -1429,28 +1429,64 @@ function renderPreventivoItems() {
         <input class="qty-input form-input" type="number" min="1" value="${it.qty||1}" onchange="updateItemQty(${i},this.value)" style="width:58px;text-align:center;padding:6px 4px">
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:80px">
-        <div class="item-total">${fmt(lineTotal)}</div>
+        <div class="item-total" id="item-total-${i}">${fmt(lineTotal)}</div>
         <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem(${i})">✕</button>
       </div>
     </div>`;
   }).join('');
 
-  const iva = companyData.iva || 22;
-  // ricalcola subtot con calcLineTotal per sicurezza
-  subtot = preventivoItems.reduce((s, it) => s + calcLineTotal(it), 0);
-  // calcola sconto
-  let scontoAmt = 0;
-  if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) {
-    scontoAmt = subtot * _prevSconto.valore / 100;
-  } else if (_prevSconto.tipo === 'fisso' && _prevSconto.valore > 0) {
-    scontoAmt = Math.min(_prevSconto.valore, subtot);
+  // Render totale box after items
+  updateTotaleBox();
+}
+
+function updateScontoTipo(v) { _prevSconto.tipo = v; if(v==='nessuno') _prevSconto.valore=0; renderPreventivoItems(); }
+function updateScontoValore(v) { _prevSconto.valore = parseFloat(v)||0; renderPreventivoItems(); }
+
+function updateItemQty(i, v) {
+  preventivoItems[i].qty = parseInt(v) || 1;
+  refreshItemTotals(i);
+}
+function updateItemDim(i, campo, v) {
+  preventivoItems[i][campo] = parseInt(v) || 0;
+  // Aggiorna solo il badge m² e il totale, senza ricostruire il DOM
+  const um = preventivoItems[i].um || 'pz';
+  if (um === 'mq') {
+    const largMm = parseInt(preventivoItems[i].larghezza)||0;
+    const altMm  = parseInt(preventivoItems[i].altezza)||0;
+    const mq = ((largMm/1000) * (altMm/1000)).toFixed(2);
+    const badge = document.getElementById('mq-badge-'+i);
+    if (badge) badge.textContent = '= ' + mq + ' m²';
+  } else if (um === 'ml') {
+    const lungMm = parseInt(preventivoItems[i].larghezza)||0;
+    const badge = document.getElementById('mq-badge-'+i);
+    if (badge) badge.textContent = '= ' + (lungMm/1000).toFixed(2) + ' ml';
   }
+  refreshItemTotals(i);
+}
+function updateItemDescRiga(i, v) { preventivoItems[i].descrizioneRiga = v; }
+function removeItem(i) { preventivoItems.splice(i, 1); renderPreventivoItems(); }
+
+function refreshItemTotals(i) {
+  // Aggiorna solo il totale della riga e il riepilogo finale, senza ricostruire il DOM
+  const lineTotal = calcLineTotal(preventivoItems[i]);
+  const el = document.getElementById('item-total-'+i);
+  if (el) el.textContent = fmt(lineTotal);
+  // Ricalcola totale generale
+  updateTotaleBox();
+}
+
+function updateTotaleBox() {
+  const totBox = document.getElementById('pv-totale-box');
+  if (!totBox || !preventivoItems.length) return;
+  const iva = companyData.iva || 22;
+  const subtot = preventivoItems.reduce((s, it) => s + calcLineTotal(it), 0);
+  let scontoAmt = 0;
+  if (_prevSconto.tipo === 'perc' && _prevSconto.valore > 0) scontoAmt = subtot * _prevSconto.valore / 100;
+  else if (_prevSconto.tipo === 'fisso' && _prevSconto.valore > 0) scontoAmt = Math.min(_prevSconto.valore, subtot);
   const imponibile = subtot - scontoAmt;
   const ivaAmt = imponibile * iva / 100;
   const totale = imponibile + ivaAmt;
-
   const scontoSelected = (v) => _prevSconto.tipo === v ? 'selected' : '';
-
   totBox.innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px">
       <div style="font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:0.5px;text-transform:uppercase">🏷️ Sconto Cliente</div>
@@ -1461,11 +1497,10 @@ function renderPreventivoItems() {
           <option value="fisso" ${scontoSelected('fisso')}>Sconto importo fisso €</option>
         </select>
         ${_prevSconto.tipo !== 'nessuno' ? `
-        <input class="form-input" type="number" min="0" step="0.01"
-          style="width:130px"
+        <input class="form-input" type="number" min="0" step="1" style="width:130px"
           placeholder="${_prevSconto.tipo === 'perc' ? 'Es. 10 (%)' : 'Es. 200 (€)'}"
           value="${_prevSconto.valore||''}"
-          oninput="updateScontoValore(this.value)">
+          onchange="updateScontoValore(this.value)">
         <span style="color:var(--gold-dark);font-weight:700;font-size:0.95rem">
           − ${_prevSconto.tipo === 'perc' ? _prevSconto.valore+'%' : ''} ${fmt(scontoAmt)}
         </span>` : ''}
@@ -1479,14 +1514,6 @@ function renderPreventivoItems() {
       <div class="totale-row"><span style="font-size:0.9rem">TOTALE</span><span class="totale-final">${fmt(totale)}</span></div>
     </div>`;
 }
-
-function updateScontoTipo(v) { _prevSconto.tipo = v; if(v==='nessuno') _prevSconto.valore=0; renderPreventivoItems(); }
-function updateScontoValore(v) { _prevSconto.valore = parseFloat(v)||0; renderPreventivoItems(); }
-
-function updateItemQty(i, v) { preventivoItems[i].qty = parseFloat(v) || 1; renderPreventivoItems(); }
-function updateItemDim(i, campo, v) { preventivoItems[i][campo] = parseFloat(v)||0; renderPreventivoItems(); }
-function updateItemDescRiga(i, v) { preventivoItems[i].descrizioneRiga = v; }
-function removeItem(i) { preventivoItems.splice(i, 1); renderPreventivoItems(); }
 
 // ── PRODUCT PICKER ──
 function openProductPicker() {
@@ -1842,7 +1869,35 @@ async function generatePDF(prevId) {
   const footParts = [companyData.nome, companyData.indirizzo, companyData.telefono, companyData.sito].filter(Boolean);
   doc.text(footParts.join('  ·  '), W/2, pageH-8, { align: 'center' });
 
-  doc.save(`Preventivo_${prev.numero||prevId.slice(-6).toUpperCase()}.pdf`);
+  const filename = `Preventivo_${prev.numero||prevId.slice(-6).toUpperCase()}.pdf`;
+  // iOS Safari non supporta doc.save() — usiamo blob URL che apre il PDF nel browser
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    // Apri PDF in nuova scheda (compatibile Safari iOS)
+    const pdfDataUri = doc.output('datauristring');
+    const newTab = window.open();
+    if (newTab) {
+      newTab.document.write(`
+        <html><head><title>${filename}</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <style>body{margin:0;background:#333;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+        .bar{width:100%;background:#1C1A17;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;}
+        .bar span{color:#C9A84C;font-family:sans-serif;font-weight:600;}
+        .bar a{background:#C9A84C;color:#1C1A17;padding:8px 16px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:700;}
+        iframe{width:100%;flex:1;border:none;}</style></head>
+        <body>
+          <div class="bar"><span>${filename}</span><a href="${pdfDataUri}" download="${filename}">⬇ Scarica</a></div>
+          <iframe src="${pdfDataUri}" width="100%" height="100%" style="flex:1;min-height:90vh"></iframe>
+        </body></html>`);
+      newTab.document.close();
+    } else {
+      // Fallback se popup bloccati
+      doc.save(filename);
+    }
+  } else {
+    // Desktop e Android — download diretto
+    doc.save(filename);
+  }
   toast('PDF generato!', 'success');
 }
 
