@@ -16,8 +16,18 @@ function navigate(page) {
   const titles = { dashboard: 'Dashboard', preventivi: 'Preventivi', prodotti: 'Catalogo Prodotti', clienti: 'Clienti', impostazioni: 'Impostazioni', categorie: 'Categorie & Materiali' };
   document.getElementById('page-title').textContent = titles[page] || page;
   closeSidebar();
-  const renderers = { dashboard: renderDashboard, preventivi: renderPreventivi, prodotti: renderProdotti, clienti: renderClienti, impostazioni: renderImpostazioni, categorie: renderCategoriePage };
-  if (renderers[page]) renderers[page]();
+  // Lookup dinamico: le funzioni sono definite in altri file JS
+  // e potrebbero non essere ancora disponibili al momento del parse di ui.js
+  const renderFnMap = {
+    dashboard: 'renderDashboard',
+    preventivi: 'renderPreventivi',
+    prodotti: 'renderProdotti',
+    clienti: 'renderClienti',
+    impostazioni: 'renderImpostazioni',
+    categorie: 'renderCategoriePage'
+  };
+  const fnName = renderFnMap[page];
+  if (fnName && typeof window[fnName] === 'function') window[fnName]();
 }
 
 function toggleSidebar() {

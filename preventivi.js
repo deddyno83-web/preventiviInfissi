@@ -3,37 +3,12 @@
 // ═══════════════════════════════════════════
 
 let preventivi = [];
-let preventivoItems = []; // items in modal editor
-let _prevSconto = { tipo: 'nessuno', valore: 0 }; // sconto corrente
-// Filtro mese — null = tutti, altrimenti 'YYYY-MM'
+let preventivoItems = [];
+let _prevSconto = { tipo: 'nessuno', valore: 0 };
 let _prevMeseFiltro = (() => {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
 })();
-
-// Cache ibrida: dirty flag (tue modifiche visibili subito) + TTL 3 minuti
-// (prende modifiche di altri utenti da altri PC ogni 3 minuti)
-const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minuti
-const _cacheDirty = { preventivi: true, clienti: true, prodotti: true, company: true };
-const _cacheTs    = { preventivi: 0,    clienti: 0,    prodotti: 0,    company: 0    };
-
-function _cacheValida(key) {
-  if (_cacheDirty[key]) return false;                       // devo ricaricare (ho scritto)
-  if (Date.now() - _cacheTs[key] > CACHE_TTL_MS) return false; // TTL scaduto
-  return true;
-}
-function invalidaCache(key) {
-  if (key) { _cacheDirty[key] = true; }
-  else { Object.keys(_cacheDirty).forEach(k => _cacheDirty[k] = true); }
-}
-
-async function loadPreventivi(force = false) {
-  if (!force && preventivi.length && _cacheValida('preventivi')) return;
-  const snap = await db.collection('preventivi').orderBy('createdAt','desc').get();
-  preventivi = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  _cacheDirty.preventivi = false;
-  _cacheTs.preventivi = Date.now();
-}
 
 function renderPreventivi() {
   document.getElementById('topbar-actions').innerHTML = `
