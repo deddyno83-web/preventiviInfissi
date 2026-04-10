@@ -68,33 +68,7 @@ function signOut() {
   if(confirm('Sei sicuro di voler uscire?')) auth.signOut();
 }
 
-auth.onAuthStateChanged(user => {
-  if (user) {
-    if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(user.email.toLowerCase())) {
-      auth.signOut();
-      toast('Accesso non autorizzato per questo account.', 'error');
-      return;
-    }
-    currentUser = user;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    const initial = user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase();
-    document.getElementById('sidebar-initial').textContent = initial;
-    document.getElementById('sidebar-name').textContent = user.displayName || user.email;
-    if (user.photoURL) {
-      document.getElementById('sidebar-avatar').innerHTML = `<img src="${user.photoURL}" alt="">`;
-    }
-    // Carica features poi naviga — usa .then() per evitare await in callback non-async
-    loadFeatures().then(() => {
-      navigate('dashboard');
-      if (can('notifiche')) checkNotifiche();
-    });
-  } else {
-    currentUser = null;
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-  }
-});
+// onAuthStateChanged → spostato in init.js (ultimo file caricato)
 
 // BOZZE LOCALI
 const BOZZE_KEY = 'infissipro_bozze';
