@@ -1521,6 +1521,8 @@ function renderPreventivi() {
         <button class="btn btn-sm btn-secondary" id="fbtn-bozza" onclick="filterPrevByStatus('bozza',this)">Bozze</button>
         <button class="btn btn-sm btn-secondary" id="fbtn-inviato" onclick="filterPrevByStatus('inviato',this)">Inviati</button>
         <button class="btn btn-sm btn-secondary" id="fbtn-accettato" onclick="filterPrevByStatus('accettato',this)">Accettati</button>
+        <button class="btn btn-sm btn-secondary" id="fbtn-in_lavorazione" onclick="filterPrevByStatus('in_lavorazione',this)" style="border-color:#8E44AD;color:#8E44AD">🔧 In lavorazione</button>
+        <button class="btn btn-sm btn-secondary" id="fbtn-consegnato" onclick="filterPrevByStatus('consegnato',this)" style="border-color:#1A5276;color:#1A5276">📦 Consegnati</button>
         ${scadutiCount > 0 ? `<button class="btn btn-sm btn-secondary" id="fbtn-scaduti" onclick="filterPrevByStatus('scaduti',this)" style="border-color:var(--danger);color:var(--danger)">⚠ Scaduti (${scadutiCount})</button>` : ''}
       </div>
     </div>
@@ -1597,12 +1599,17 @@ function renderPreventiviTable(list) {
       <td>${fmtDate(p.createdAt)}</td>
       <td>
         <strong>${fmt(p.totaleFinale)}</strong>
-        ${['accettato','in_lavorazione','consegnato'].includes(p.stato) && (p.anticipoPerc??0)>0 ? `
-          <br><small style="color:${p.anticipoRicevuto?'var(--success)':'#E67E22'};font-size:0.7rem">
-            ${p.anticipoRicevuto ? '✓ ant. ' : '⏳ ant. '}${fmt(p.totaleFinale*(p.anticipoPerc??40)/100)}
-            &nbsp;·&nbsp;
-            <span style="color:var(--danger)">saldo ${fmt(p.totaleFinale-(p.totaleFinale*(p.anticipoPerc??40)/100))}</span>
-          </small>` : ''}
+        ${(() => {
+          if (!['accettato','in_lavorazione','consegnato'].includes(p.stato) || !(p.anticipoPerc??0)) return '';
+          const ant = p.totaleFinale * ((p.anticipoPerc??40)/100);
+          const sal = p.totaleFinale - ant;
+          if (p.anticipoRicevuto) {
+            return `<br><span style='display:inline-flex;align-items:center;gap:3px;margin-top:3px;font-size:0.68rem;background:#EBF8F1;color:var(--success);border-radius:4px;padding:1px 6px;font-weight:600'>✓ acconto incassato</span>`
+            + `<br><span style='font-size:0.72rem;color:var(--danger);font-weight:600'>saldo: ${fmt(sal)}</span>`;
+          } else {
+            return `<br><span style='display:inline-flex;align-items:center;gap:3px;margin-top:3px;font-size:0.68rem;background:#FFF8E1;color:#E67E22;border-radius:4px;padding:1px 6px;font-weight:600'>⏳ acconto atteso ${fmt(ant)}</span>`;
+          }
+        })()}
       </td>
       <td>
         <select class="stato-select" onchange="cambiaStato('${p.id}',this.value)" style="border:none;background:transparent;font-family:inherit;font-size:0.8rem;cursor:pointer;padding:2px 4px;border-radius:6px;${statoStyle(p.stato||'bozza')}">
@@ -1713,10 +1720,15 @@ function filtraMese(val) {
 
 function filterPrevByStatus(status, btn) {
   prevStatusFilter = status;
-  // Aggiorna stile bottoni
+  // Reset tutti i bottoni ai colori custom di default
+  const btnColors = {
+    'fbtn-scaduti':       'border-color:var(--danger);color:var(--danger)',
+    'fbtn-in_lavorazione':'border-color:#8E44AD;color:#8E44AD',
+    'fbtn-consegnato':    'border-color:#1A5276;color:#1A5276',
+  };
   document.querySelectorAll('[id^="fbtn-"]').forEach(b => {
     b.className = 'btn btn-sm btn-secondary';
-    if (b.id === 'fbtn-scaduti') b.style.cssText = 'border-color:var(--danger);color:var(--danger)';
+    b.style.cssText = btnColors[b.id] || '';
   });
   if (btn) {
     btn.className = 'btn btn-sm btn-primary';
