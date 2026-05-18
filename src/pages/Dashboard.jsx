@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 
-export default function Dashboard({ setActiveTab }) {
+export default function Dashboard({ setActiveTab, onFilterPreventivi }) {
+  function goPreventivi(filter) {
+    if (filter && onFilterPreventivi) onFilterPreventivi(filter);
+    else setActiveTab('preventivi');
+  }
   const [stats, setStats] = useState({
     prevTot: 0, 
     prevMeseLen: 0,
@@ -33,7 +37,8 @@ export default function Dashboard({ setActiveTab }) {
         const totMese = prevMese.reduce((s, p) => s + (p.totaleFinale||0), 0);
         
         const accettati = preventivi.filter(p => p.stato === 'accettato');
-        const inviati = preventivi.filter(p => p.stato === 'inviato');
+        const inviati   = preventivi.filter(p => p.stato === 'inviato');
+        const bozze     = preventivi.filter(p => p.stato === 'bozza');
 
         setStats({
           prevTot: preventivi.length,
@@ -41,7 +46,7 @@ export default function Dashboard({ setActiveTab }) {
           prevMeseVal: totMese,
           accettatiLen: accettati.length,
           accettatiVal: accettati.reduce((s,p) => s + (p.totaleFinale||0), 0),
-          inviatiLen: inviati.length
+          daSeguireLen: inviati.length + bozze.length
         });
 
         // Map recent preventivi to include client names
@@ -85,15 +90,15 @@ export default function Dashboard({ setActiveTab }) {
           <div className="stat-value">{stats.prevMeseLen}</div>
           <div className="stat-sub">{fmt(stats.prevMeseVal)} di valore</div>
         </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab && setActiveTab('preventivi')}>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => goPreventivi('accettato')}>
           <div className="stat-label">Accettati</div>
           <div className="stat-value" style={{ color: 'var(--success)' }}>{stats.accettatiLen}</div>
           <div className="stat-sub">{fmt(stats.accettatiVal)}</div>
         </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab && setActiveTab('preventivi')}>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => goPreventivi('da_seguire')}>
           <div className="stat-label">Da seguire</div>
-          <div className="stat-value" style={{ color: 'var(--accent)' }}>{stats.inviatiLen}</div>
-          <div className="stat-sub">in attesa risposta</div>
+          <div className="stat-value" style={{ color: 'var(--accent)' }}>{stats.daSeguireLen}</div>
+          <div className="stat-sub">bozze + in attesa risposta</div>
         </div>
       </div>
 

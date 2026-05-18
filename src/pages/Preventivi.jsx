@@ -14,7 +14,7 @@ const STATO_STYLE = {
 
 const PAGE_SIZE = 25;
 
-export default function Preventivi({ initialClienteId, onClearInitialCliente, openNewPrev, onClearOpenNewPrev }) {
+export default function Preventivi({ initialClienteId, onClearInitialCliente, openNewPrev, onClearOpenNewPrev, initialStatusFilter, onClearInitialFilter }) {
   const [preventivi, setPreventivi] = useState([]);
   const [clienti, setClienti] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
@@ -54,6 +54,15 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
       if (onClearOpenNewPrev) onClearOpenNewPrev();
     }
   }, [openNewPrev]);
+
+  // Filtro iniziale dalla dashboard (es. accettato, da_seguire)
+  useEffect(() => {
+    if (initialStatusFilter) {
+      setStatusFilter(initialStatusFilter);
+      setMonthFilter('tutti');
+      if (onClearInitialFilter) onClearInitialFilter();
+    }
+  }, [initialStatusFilter]);
 
   const scadutiCount = (() => {
     const oggi = new Date(); oggi.setHours(0,0,0,0);
@@ -141,6 +150,8 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
     if (status === 'scaduti') {
       const oggi = new Date(); oggi.setHours(0,0,0,0);
       list = list.filter(p => p.validoFino && new Date(p.validoFino) < oggi && !['rifiutato','consegnato'].includes(p.stato));
+    } else if (status === 'da_seguire') {
+      list = list.filter(p => p.stato === 'inviato' || p.stato === 'bozza');
     } else if (status !== 'tutti') {
       list = list.filter(p => p.stato === status);
     }
@@ -356,6 +367,7 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
           <option value="anno">Quest'anno</option>
         </select>
         <button className={`btn btn-sm ${statusFilter === 'tutti' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handleFilterStatus('tutti')}>Tutti</button>
+        <button className={`btn btn-sm ${statusFilter === 'da_seguire' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handleFilterStatus('da_seguire')}>👀 Da seguire</button>
         <button className={`btn btn-sm ${statusFilter === 'bozza' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handleFilterStatus('bozza')}>📝 Bozze</button>
         <button className={`btn btn-sm ${statusFilter === 'inviato' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handleFilterStatus('inviato')}>📤 Inviati</button>
         <button className={`btn btn-sm ${statusFilter === 'accettato' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handleFilterStatus('accettato')}>✅ Accettati</button>

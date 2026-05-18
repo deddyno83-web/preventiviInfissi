@@ -39,6 +39,7 @@ function AuthScreen() {
 function MainLayout() {
   const { currentUser, signOut, features } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [prevInitialFilter, setPrevInitialFilter] = useState(null);
   const [newPrevClientId, setNewPrevClientId] = useState(null);
   const [openNewPrev, setOpenNewPrev] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -196,8 +197,8 @@ function MainLayout() {
           </div>
         </header>
         
-        {activeTab === 'dashboard' && <main className="content"><Dashboard setActiveTab={setActiveTab} /></main>}
-        {activeTab === 'preventivi' && <main className="content"><Preventivi initialClienteId={newPrevClientId} onClearInitialCliente={() => setNewPrevClientId(null)} openNewPrev={openNewPrev} onClearOpenNewPrev={() => setOpenNewPrev(false)} /></main>}
+        {activeTab === 'dashboard' && <main className="content"><Dashboard setActiveTab={setActiveTab} onFilterPreventivi={(filter) => { setPrevInitialFilter(filter); setActiveTab('preventivi'); }} /></main>}
+        {activeTab === 'preventivi' && <main className="content"><Preventivi initialClienteId={newPrevClientId} onClearInitialCliente={() => setNewPrevClientId(null)} openNewPrev={openNewPrev} onClearOpenNewPrev={() => setOpenNewPrev(false)} initialStatusFilter={prevInitialFilter} onClearInitialFilter={() => setPrevInitialFilter(null)} /></main>}
         {activeTab === 'prodotti' && <main className="content"><Prodotti /></main>}
         {activeTab === 'categorie' && <main className="content"><Categorie /></main>}
         {activeTab === 'clienti' && <main className="content"><Clienti onNuovoPreventivo={(cid) => { setNewPrevClientId(cid); setActiveTab('preventivi'); }} /></main>}
