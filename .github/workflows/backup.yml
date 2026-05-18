@@ -24,7 +24,7 @@ jobs:
       - name: Esegui backup
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: node scripts/firestore-backup.js
+        run: node scripts/firestore-backup.cjs
 
       - name: Push backup su repo privato
         env:
