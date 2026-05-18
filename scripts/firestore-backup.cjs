@@ -7,13 +7,30 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+// Legge una collection con retry in caso di quota temporanea
+async function getCollection(col, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const snap = await db.collection(col).get();
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (err) {
+      if (err.code === 8 && i < retries - 1) {
+        // RESOURCE_EXHAUSTED — aspetta 60 secondi e riprova
+        console.warn(`  ⚠️  Quota ${col}: attendo 60s e riprovo (tentativo ${i + 1}/${retries})...`);
+        await new Promise(r => setTimeout(r, 60000));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function backup() {
   const collections = ['preventivi', 'clienti', 'prodotti', 'settings'];
   const data = {};
 
   for (const col of collections) {
-    const snap = await db.collection(col).get();
-    data[col] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    data[col] = await getCollection(col);
     console.log(`  ${col}: ${data[col].length} documenti`);
   }
 

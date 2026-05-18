@@ -2,7 +2,7 @@ name: Backup Firestore Giornaliero
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # ogni notte alle 3:00 UTC (4:00 ora italiana)
+    - cron: '0 10 * * *'  # ogni giorno alle 10:00 UTC (12:00 ora italiana) — dopo il reset quota Firebase
   workflow_dispatch:      # avvio manuale
 
 jobs:
