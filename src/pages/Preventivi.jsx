@@ -18,9 +18,9 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
   const [preventivi, setPreventivi] = useState([]);
   const [clienti, setClienti] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('tutti');
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter || 'tutti');
   const [searchQuery, setSearchQuery] = useState('');
-  const [monthFilter, setMonthFilter] = useState('corrente');
+  const [monthFilter, setMonthFilter] = useState(() => initialStatusFilter ? 'tutti' : 'corrente');
   const [loading, setLoading] = useState(true);
 
   // Paginazione
@@ -39,6 +39,8 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
 
   useEffect(() => {
     loadClienti();
+    // Notifica App.jsx che il filtro iniziale è stato applicato
+    if (initialStatusFilter && onClearInitialFilter) onClearInitialFilter();
   }, []);
 
   useEffect(() => {
@@ -54,15 +56,6 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
       if (onClearOpenNewPrev) onClearOpenNewPrev();
     }
   }, [openNewPrev]);
-
-  // Filtro iniziale dalla dashboard (es. accettato, da_seguire)
-  useEffect(() => {
-    if (initialStatusFilter) {
-      setStatusFilter(initialStatusFilter);
-      setMonthFilter('tutti');
-      if (onClearInitialFilter) onClearInitialFilter();
-    }
-  }, [initialStatusFilter]);
 
   const scadutiCount = (() => {
     const oggi = new Date(); oggi.setHours(0,0,0,0);
