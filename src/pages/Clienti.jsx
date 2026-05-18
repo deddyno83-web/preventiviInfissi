@@ -72,7 +72,7 @@ export default function Clienti({ onNuovoPreventivo }) {
     const q = e.target.value.toLowerCase();
     setSearchQuery(q);
     setFilteredClienti(
-      clienti.filter(c => (c.cognome || '')+(c.nome || '')+(c.azienda || '')+(c.email || '').toLowerCase().includes(q))
+      clienti.filter(c => ((c.cognome || '')+(c.nome || '')+(c.azienda || '')+(c.email || '')+(c.telefono || '')).toLowerCase().includes(q))
     );
   }
 

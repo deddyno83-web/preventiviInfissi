@@ -12,6 +12,8 @@ const STATO_STYLE = {
   rifiutato:     { color: '#C0392B', background: '#FDEDED' },
 };
 
+const PAGE_SIZE = 25;
+
 export default function Preventivi({ initialClienteId, onClearInitialCliente, openNewPrev, onClearOpenNewPrev }) {
   const [preventivi, setPreventivi] = useState([]);
   const [clienti, setClienti] = useState([]);
@@ -21,16 +23,28 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
   const [monthFilter, setMonthFilter] = useState('corrente');
   const [loading, setLoading] = useState(true);
 
+  // Paginazione
+  const [pageCursors, setPageCursors] = useState([]); // cursori Firestore per ogni pagina
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPreventivo, setCurrentPreventivo] = useState(null);
   // Email modal
-  const [emailModal, setEmailModal] = useState(null); // { prevId, toEmail, body, numPDF, companyData }
-  const [emailStatus, setEmailStatus] = useState(null); // { type, msg }
+  const [emailModal, setEmailModal] = useState(null);
+  const [emailStatus, setEmailStatus] = useState(null);
   const [emailSending, setEmailSending] = useState(false);
 
   useEffect(() => {
-    loadData(monthFilter, statusFilter);
+    loadClienti();
+  }, []);
+
+  useEffect(() => {
+    if (!isSearchMode) {
+      resetAndLoad(monthFilter, statusFilter);
+    }
   }, [monthFilter, statusFilter]);
 
   useEffect(() => {
@@ -54,44 +68,69 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
     }
   }, [initialClienteId]);
 
-  async function loadData(mFilter, stFilter) {
+  async function loadClienti() {
+    const cSnap = await db.collection('clienti').get();
+    setClienti(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+  }
+
+  function buildQuery(mFilter, stFilter) {
+    const oggi = new Date();
+    let query = db.collection('preventivi');
+    if (mFilter && mFilter !== 'tutti' && stFilter !== 'scaduti') {
+      let startDate, endDate;
+      if (mFilter === 'corrente') {
+        startDate = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+        endDate   = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 1);
+      } else if (mFilter === 'scorso') {
+        startDate = new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1);
+        endDate   = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+      } else if (mFilter === '3mesi') {
+        startDate = new Date(oggi.getFullYear(), oggi.getMonth() - 3, 1);
+        endDate   = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 1);
+      } else if (mFilter === 'anno') {
+        startDate = new Date(oggi.getFullYear(), 0, 1);
+        endDate   = new Date(oggi.getFullYear() + 1, 0, 1);
+      }
+      if (startDate && endDate) {
+        query = query
+          .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(startDate))
+          .where('createdAt', '<',  firebase.firestore.Timestamp.fromDate(endDate));
+      }
+    }
+    return query.orderBy('createdAt', 'desc');
+  }
+
+  function resetAndLoad(mFilter, stFilter) {
+    setCurrentPage(0);
+    setPageCursors([]);
+    loadPage(mFilter, stFilter, null);
+  }
+
+  async function loadPage(mFilter, stFilter, cursor) {
     setLoading(true);
     try {
-      const oggi = new Date();
-      let query = db.collection('preventivi');
-
-      // Filtro mese a livello Firestore (solo se non 'tutti' e non 'scaduti')
-      if (mFilter && mFilter !== 'tutti' && stFilter !== 'scaduti') {
-        let startDate, endDate;
-        if (mFilter === 'corrente') {
-          startDate = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
-          endDate   = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 1);
-        } else if (mFilter === 'scorso') {
-          startDate = new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1);
-          endDate   = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
-        } else if (mFilter === '3mesi') {
-          startDate = new Date(oggi.getFullYear(), oggi.getMonth() - 3, 1);
-          endDate   = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 1);
-        } else if (mFilter === 'anno') {
-          startDate = new Date(oggi.getFullYear(), 0, 1);
-          endDate   = new Date(oggi.getFullYear() + 1, 0, 1);
-        }
-        if (startDate && endDate) {
-          query = query
-            .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(startDate))
-            .where('createdAt', '<',  firebase.firestore.Timestamp.fromDate(endDate));
-        }
-      }
-
-      const [pSnap, cSnap] = await Promise.all([
-        query.orderBy('createdAt', 'desc').get(),
-        db.collection('clienti').get()
-      ]);
-      const pData = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const cData = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setClienti(cData);
+      let query = buildQuery(mFilter, stFilter).limit(PAGE_SIZE + 1);
+      if (cursor) query = query.startAfter(cursor);
+      const pSnap = await query.get();
+      const allDocs = pSnap.docs;
+      const hasNext = allDocs.length > PAGE_SIZE;
+      const pData = allDocs.slice(0, PAGE_SIZE).map(d => ({ id: d.id, ...d.data() }));
+      setHasNextPage(hasNext);
       setPreventivi(pData);
-      applyFilters(pData, cData, stFilter, searchQuery);
+      applyFilters(pData, clienti, stFilter, '');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Carica TUTTI i preventivi del periodo solo per la ricerca
+  async function loadAllForSearch(mFilter, stFilter, q) {
+    setLoading(true);
+    try {
+      const pSnap = await buildQuery(mFilter, stFilter).get();
+      const pData = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setPreventivi(pData);
+      applyFilters(pData, clienti, stFilter, q);
     } finally {
       setLoading(false);
     }
@@ -117,18 +156,72 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
 
   function handleFilterStatus(st) {
     setStatusFilter(st);
-    // loadData viene triggerato dall'useEffect su statusFilter
   }
 
   function handleSearch(e) {
     const q = e.target.value.toLowerCase();
     setSearchQuery(q);
-    applyFilters(preventivi, clienti, statusFilter, q);
+    if (q.length >= 2) {
+      setIsSearchMode(true);
+      loadAllForSearch(monthFilter, statusFilter, q);
+    } else {
+      setIsSearchMode(false);
+      resetAndLoad(monthFilter, statusFilter);
+    }
   }
 
   function handleMonthFilter(e) {
     setMonthFilter(e.target.value);
-    // loadData viene triggerato dall'useEffect su monthFilter
+  }
+
+  function goToNextPage() {
+    const lastDoc = preventivi.length > 0
+      ? db.collection('preventivi').doc(preventivi[preventivi.length - 1].id)
+      : null;
+    // Salva il cursore della pagina corrente
+    const newCursors = [...pageCursors];
+    newCursors[currentPage] = preventivi[preventivi.length - 1];
+    setPageCursors(newCursors);
+    setCurrentPage(p => p + 1);
+    // Usa il documento Firestore come cursore
+    const cursorDoc = db.collection('preventivi').doc(preventivi[preventivi.length - 1].id);
+    loadPageWithDoc(monthFilter, statusFilter, preventivi[preventivi.length - 1]);
+  }
+
+  function goToPrevPage() {
+    const prevPage = currentPage - 1;
+    setCurrentPage(prevPage);
+    const cursor = prevPage > 0 ? pageCursors[prevPage - 1] : null;
+    loadPageWithDoc(monthFilter, statusFilter, cursor);
+  }
+
+  async function loadPageWithDoc(mFilter, stFilter, cursorData) {
+    setLoading(true);
+    try {
+      let query = buildQuery(mFilter, stFilter).limit(PAGE_SIZE + 1);
+      if (cursorData) {
+        const cursorSnap = await db.collection('preventivi').doc(cursorData.id).get();
+        query = query.startAfter(cursorSnap);
+      }
+      const pSnap = await query.get();
+      const allDocs = pSnap.docs;
+      const hasNext = allDocs.length > PAGE_SIZE;
+      const pData = allDocs.slice(0, PAGE_SIZE).map(d => ({ id: d.id, ...d.data() }));
+      setHasNextPage(hasNext);
+      setPreventivi(pData);
+      applyFilters(pData, clienti, stFilter, '');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Ricarica la pagina corrente dopo modifiche
+  async function loadData(mFilter, stFilter) {
+    if (isSearchMode && searchQuery.length >= 2) {
+      loadAllForSearch(mFilter, stFilter, searchQuery);
+    } else {
+      resetAndLoad(mFilter, stFilter);
+    }
   }
 
   async function deletePreventivo(id) {
@@ -382,6 +475,30 @@ export default function Preventivi({ initialClienteId, onClearInitialCliente, op
             </tbody>
           </table>
         </div>
+
+        {/* PAGINAZIONE — nascosta in modalità ricerca */}
+        {!isSearchMode && !loading && (currentPage > 0 || hasNextPage) && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '16px 0' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={goToPrevPage}
+              disabled={currentPage === 0}
+            >← Precedenti</button>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text2)' }}>
+              Pagina {currentPage + 1}
+            </span>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={goToNextPage}
+              disabled={!hasNextPage}
+            >Successivi →</button>
+          </div>
+        )}
+        {isSearchMode && (
+          <div style={{ textAlign: 'center', padding: '8px 0', fontSize: '0.8rem', color: 'var(--text3)' }}>
+            Ricerca attiva — mostrati tutti i risultati del periodo
+          </div>
+        )}
       </div>
 
       {isModalOpen && (

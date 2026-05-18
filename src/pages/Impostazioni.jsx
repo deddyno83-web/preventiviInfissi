@@ -116,8 +116,7 @@ export default function Impostazioni() {
       function ripristinaTimestamps(val) {
         if (val === null || val === undefined) return val;
         if (typeof val === 'object' && !Array.isArray(val)) {
-          const k = Object.keys(val);
-          if (k.length === 2 && typeof val.seconds === 'number' && typeof val.nanoseconds === 'number') {
+          if (typeof val.seconds === 'number' && typeof val.nanoseconds === 'number') {
             return new firebase.firestore.Timestamp(val.seconds, val.nanoseconds);
           }
           const out = {};

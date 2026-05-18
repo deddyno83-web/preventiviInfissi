@@ -114,7 +114,7 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
       const fp = [companyData.nome, companyData.indirizzo, companyData.telefono].filter(Boolean).join(' – ');
       doc.text(fp, M, pageH - 10);
-      doc.text(`Pag. ${pageNum}`, W - M, pageH - 10, { align: 'right' });
+      // numero pagina scritto solo nel loop finale (Pag. X/Y)
     }
 
     function newPage() {
@@ -133,51 +133,52 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
     }
 
     // ── HEADER PAGINA 1 ─────────────────────────────────────────────────────
-    // Logo (sinistra)
+    // Logo (sinistra) — stesso formato dell'originale: 55x28mm landscape
     if (companyData.logoBase64) {
       try {
         const ext = companyData.logoBase64.includes('png') ? 'PNG' : 'JPEG';
-        doc.addImage(companyData.logoBase64, ext, M, y, 36, 36, '', 'FAST');
-      } catch (e) { /* logo fallback sotto */ }
+        doc.addImage(companyData.logoBase64, ext, M, y, 55, 28, '', 'FAST');
+      } catch (e) { /* logo fallback */ }
     }
 
     // Dati azienda (destra del logo)
-    const hx = M + 42;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
-    doc.text(companyData.nome || '', hx, y + 7);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60, 60, 60);
-    let hy = y + 13;
-    if (companyData.indirizzo) { doc.text(companyData.indirizzo, hx, hy); hy += 5; }
-    if (companyData.telefono)  { doc.text(`Tel. ${companyData.telefono}`, hx, hy); hy += 5; }
-    if (companyData.piva)      { doc.text(`P. iva ${companyData.piva}`, hx, hy); hy += 5; }
-    if (companyData.email)     { doc.text(companyData.email, hx, hy); hy += 5; }
-    if (companyData.sito)      { doc.text(companyData.sito, hx, hy); }
+    const hx = M + 60;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
+    doc.text(companyData.nome || '', hx, y + 6);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(60, 60, 60);
+    const aLines = [
+      companyData.indirizzo || '',
+      companyData.telefono ? `Tel. ${companyData.telefono}` : '',
+      companyData.piva ? `P. iva ${companyData.piva}` : '',
+      companyData.email || '',
+      companyData.sito || ''
+    ].filter(Boolean);
+    aLines.forEach((l, i) => doc.text(l, hx, y + 12 + i * 5));
 
-    y = M + 40;
+    y += 38;
 
     // Linea separatrice
-    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.4);
+    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
     doc.line(M, y, W - M, y);
-    y += 8;
+    y += 6;
 
     // Numero preventivo + data  |  validità (destra)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
-    doc.text(`Preventivo n° ${numStr} del ${fmtDate(prev.createdAt)}`, M, y);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
+    doc.text(`Preventivo n° ${numStr} del ${fmtDate(prev.createdAt)}`, M, y + 5);
     if (prev.validoFino) {
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(160, 120, 40);
-      doc.text(`Validità offerta: fino al ${fmtDate(prev.validoFino)}`, W - M, y, { align: 'right' });
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120, 80, 20);
+      doc.text(`Validità offerta: fino al ${fmtDate(prev.validoFino)}`, W - M, y + 5, { align: 'right' });
     }
-    y += 7;
 
     // Info cliente
     const clName = cl.azienda || `${cl.cognome || ''} ${cl.nome || ''}`.trim();
     const clCell = cl.telefono ? ` – cell. ${cl.telefono}` : '';
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(40, 40, 40);
-    doc.text(`Cliente: ${clName}${clCell}`, M, y);
-    y += 5;
+    doc.text(`Cliente: ${clName}${clCell}`, M, y + 12);
     const clAddr = [cl.indirizzo, cl.citta].filter(Boolean).join(', ');
-    if (clAddr) { doc.text(clAddr, M, y); y += 5; }
-    y += 4;
+    if (clAddr) { doc.setFontSize(8); doc.setTextColor(80, 80, 80); doc.text(clAddr, M, y + 18); }
+
+    y += 24;
 
     // Testo introduttivo
     if (prev.note) {
@@ -264,8 +265,8 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
       const fotoSrc = it.foto || prodotti.find(p => p.id === it.prodottoId)?.foto || null;
       if (fotoSrc) {
         try {
-          const ext2 = fotoSrc.toLowerCase().includes('png') ? 'PNG' : 'JPEG';
-          doc.addImage(fotoSrc, ext2, imgX, imgY, imgW, imgH, '', 'FAST');
+          const ext2 = fotoSrc.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(fotoSrc, ext2, imgX, imgY, imgW, imgH, '', 'NONE');
         } catch(e) {
           doc.setDrawColor(200,200,200); doc.rect(imgX, imgY, imgW, imgH, 'S');
         }
@@ -321,9 +322,11 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60, 60, 60);
     let ty = y;
 
-    doc.text('Subtotale:', totBoxLabelX, ty);
-    doc.text(fmt(subT), totBoxValX, ty, { align: 'right' });
-    ty += 6;
+    if (sAmt > 0) {
+      doc.text('Subtotale:', totBoxLabelX, ty);
+      doc.text(fmt(subT), totBoxValX, ty, { align: 'right' });
+      ty += 6;
+    }
 
     if (sAmt > 0) {
       doc.setTextColor(39, 130, 80);
@@ -349,6 +352,24 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
     doc.text('TOTALE', totBoxLabelX + 2, ty + 2);
     doc.text(fmt(totFinale), totBoxValX, ty + 2, { align: 'right' });
     ty += totRowH + 4;
+
+    // RIEPILOGO PAGAMENTI (destra, sotto totale box)
+    const anticipoPerc = prev.anticipoPerc ?? 40;
+    if (anticipoPerc > 0 && totFinale > 0) {
+      const anticipoAmt = parseFloat((totFinale * anticipoPerc / 100).toFixed(2));
+      const saldoAmt    = parseFloat((totFinale - anticipoAmt).toFixed(2));
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(20, 20, 20);
+      doc.text('Riepilogo pagamenti:', totBoxLabelX, ty);
+      ty += 5;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
+      doc.text(`Anticipo ${anticipoPerc}% (alla firma):`, totBoxLabelX, ty);
+      doc.text(fmt(anticipoAmt), totBoxValX, ty, { align: 'right' });
+      ty += 5;
+      doc.setTextColor(180, 100, 20);
+      doc.text('Saldo a lavori ultimati:', totBoxLabelX, ty);
+      doc.text(fmt(saldoAmt), totBoxValX, ty, { align: 'right' });
+      ty += 8;
+    }
 
     // CONDIZIONI (sinistra, parte con y iniziale)
     let leftY = y;
@@ -416,8 +437,6 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
-      doc.setFillColor(255, 255, 255);
-      doc.rect(W - M - 18, pageH - 14, 20, 8, 'F');
       doc.text(`Pag. ${i}/${totalPages}`, W - M, pageH - 10, { align: 'right' });
     }
 
@@ -467,8 +486,20 @@ export async function sendWhatsApp(preventivoId) {
 }
 
 // ─── GMAIL TOKEN ─────────────────────────────────────────────────────────────
+async function waitForGIS(maxWait = 5000) {
+  if (window.google?.accounts?.oauth2) return;
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    await new Promise(r => setTimeout(r, 200));
+    if (window.google?.accounts?.oauth2) return;
+  }
+  throw new Error('Libreria Google Identity Services non caricata. Ricarica la pagina.');
+}
+
 export async function getGmailToken() {
   if (_gmailToken && Date.now() < _gmailTokenExpiry) return _gmailToken;
+
+  await waitForGIS();
 
   return new Promise((resolve, reject) => {
     if (!window.google?.accounts?.oauth2) {
