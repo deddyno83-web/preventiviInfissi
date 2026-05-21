@@ -154,6 +154,8 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
   }
 
   function getCalculatedQty(it) {
+    // Restituisce solo la quantità "dimensionale" (mq o ml).
+    // Per pz/cad ritorna 1 perché qty viene già usato come moltiplicatore nella formula.
     if (it.um === 'mq') {
       if (it.mqManuale > 0) return it.mqManuale;
       const largM = (parseFloat(it.larghezza) || 0) / 1000;
@@ -164,7 +166,7 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
     if (it.um === 'ml') {
       return (parseFloat(it.larghezza) || 0) / 1000;
     }
-    return it.qty || 1;
+    return 1; // pz/cad: la quantità è gestita da it.qty nella formula prezzo * qty * getCalculatedQty
   }
 
   function handleSave() {
