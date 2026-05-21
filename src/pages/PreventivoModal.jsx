@@ -31,6 +31,8 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
   const [companyIva, setCompanyIva] = useState(22);
   
   // Product picker state
+  const [indirizzoCliente, setIndirizzoCliente] = useState('');
+
   const [showPicker, setShowPicker] = useState(false);
   const [prodotti, setProdotti] = useState([]);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -76,6 +78,25 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
       }
     }
   }, [preventivo]);
+
+  // Aggiorna indirizzo locale quando cambia il cliente
+  useEffect(() => {
+    const cl = clienti.find(c => c.id === formData.clienteId);
+    setIndirizzoCliente(cl?.indirizzo || '');
+  }, [formData.clienteId]);
+
+  // Salva l'indirizzo sul cliente in Firestore (chiamato onBlur)
+  async function salvaIndirizzoCliente(valore) {
+    if (!formData.clienteId || !valore.trim()) return;
+    const cl = clienti.find(c => c.id === formData.clienteId);
+    if (valore.trim() === (cl?.indirizzo || '')) return; // nessuna modifica
+    try {
+      await db.collection('clienti').doc(formData.clienteId).update({
+        indirizzo: valore.trim(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch(e) { console.warn('Errore salvataggio indirizzo:', e); }
+  }
 
   async function loadProdotti() {
     if (prodotti.length) return;
@@ -291,28 +312,36 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
                   const cl = clienti.find(c => c.id === formData.clienteId);
                   if (!cl) return null;
                   return (
-                    <div style={{ marginTop: '8px', padding: '10px 14px', background: '#F0F7FF', borderRadius: '8px', border: '1px solid #BDDCF8', display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '0.83rem' }}>
-                      {cl.telefono && (
+                    <div style={{ marginTop: '8px', padding: '10px 14px', background: '#F0F7FF', borderRadius: '8px', border: '1px solid #BDDCF8', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.83rem' }}>
+                      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
                           <span>📞</span>
-                          <a href={`tel:${cl.telefono}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.telefono}</a>
+                          {cl.telefono
+                            ? <a href={`tel:${cl.telefono}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.telefono}</a>
+                            : <span style={{ color: 'var(--text3)' }}>—</span>}
                         </div>
-                      )}
-                      {cl.email && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
                           <span>✉️</span>
-                          <a href={`mailto:${cl.email}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.email}</a>
+                          {cl.email
+                            ? <a href={`mailto:${cl.email}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.email}</a>
+                            : <span style={{ color: 'var(--text3)' }}>—</span>}
                         </div>
-                      )}
-                      {cl.indirizzo && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
-                          <span>📍</span>
-                          <span style={{ fontWeight: 600 }}>{cl.indirizzo}{cl.citta ? ', ' + cl.citta : ''}</span>
-                        </div>
-                      )}
-                      {!cl.telefono && !cl.email && !cl.indirizzo && (
-                        <span style={{ color: 'var(--text3)', fontStyle: 'italic' }}>Nessun contatto registrato</span>
-                      )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50', flexWrap: 'wrap' }}>
+                        <span>📍</span>
+                        <span style={{ color: 'var(--text3)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>Indirizzo installazione:</span>
+                        {indirizzoCliente
+                          ? <span style={{ fontWeight: 600 }}>{indirizzoCliente}{cl.citta ? ', ' + cl.citta : ''}</span>
+                          : <input
+                              type="text"
+                              placeholder="Inserisci indirizzo..."
+                              value={indirizzoCliente}
+                              onChange={e => setIndirizzoCliente(e.target.value)}
+                              onBlur={e => salvaIndirizzoCliente(e.target.value)}
+                              style={{ flex: 1, minWidth: '180px', padding: '3px 8px', border: '1px solid #BDDCF8', borderRadius: '5px', fontSize: '0.83rem', background: 'white' }}
+                            />
+                        }
+                      </div>
                     </div>
                   );
                 })()}
