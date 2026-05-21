@@ -286,6 +286,37 @@ export default function PreventivoModal({ preventivo, clienti, onClose, onSave }
                   </select>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNuovoCliente(v => !v)} title="Nuovo cliente rapido">+</button>
                 </div>
+                {/* Riepilogo cliente selezionato */}
+                {formData.clienteId && (() => {
+                  const cl = clienti.find(c => c.id === formData.clienteId);
+                  if (!cl) return null;
+                  return (
+                    <div style={{ marginTop: '8px', padding: '10px 14px', background: '#F0F7FF', borderRadius: '8px', border: '1px solid #BDDCF8', display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '0.83rem' }}>
+                      {cl.telefono && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
+                          <span>📞</span>
+                          <a href={`tel:${cl.telefono}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.telefono}</a>
+                        </div>
+                      )}
+                      {cl.email && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
+                          <span>✉️</span>
+                          <a href={`mailto:${cl.email}`} style={{ color: '#2980B9', fontWeight: 600, textDecoration: 'none' }}>{cl.email}</a>
+                        </div>
+                      )}
+                      {cl.indirizzo && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2C3E50' }}>
+                          <span>📍</span>
+                          <span style={{ fontWeight: 600 }}>{cl.indirizzo}{cl.citta ? ', ' + cl.citta : ''}</span>
+                        </div>
+                      )}
+                      {!cl.telefono && !cl.email && !cl.indirizzo && (
+                        <span style={{ color: 'var(--text3)', fontStyle: 'italic' }}>Nessun contatto registrato</span>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {showNuovoCliente && (
                   <div style={{ marginTop: '10px', padding: '14px', background: 'var(--surface2)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                     <strong style={{ fontSize: '0.82rem' }}>Nuovo Cliente Rapido</strong>
