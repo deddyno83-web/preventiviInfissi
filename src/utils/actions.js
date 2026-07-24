@@ -213,7 +213,7 @@ export async function generatePDF(preventivoInput, outputMode = 'save') {
         return Math.ceil(lm * am * 2) / 2;
       }
       if (it.um === 'ml') return (parseInt(it.larghezza) || 0) / 1000;
-      return it.qty || 1;
+      return 1; // pz/cad: qty è già moltiplicatore nella formula prezzo × getDimQty × qty
     }
 
     (prev.items || []).forEach((it, idx) => {
