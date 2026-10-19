@@ -1,8 +1,8 @@
 name: Deploy su GitHub Pages
 
 on:
-  push:
-    branches: [main]
+  # Solo manuale: finché i secrets VITE_FIREBASE_* non sono configurati, un push
+  # su main costruirebbe il sito senza config Firebase e sovrascriverebbe gh-pages.
   workflow_dispatch:
 
 jobs:

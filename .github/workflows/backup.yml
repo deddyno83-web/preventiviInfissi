@@ -2,7 +2,7 @@ name: Backup Firestore Giornaliero
 
 on:
   schedule:
-    - cron: '0 10 * * *'  # ogni giorno alle 10:00 UTC (12:00 ora italiana) — dopo il reset quota Firebase
+    - cron: '0 10 * * *'  # ogni giorno alle 10:00 UTC (dopo il reset quota Firebase)
   workflow_dispatch:      # avvio manuale
 
 jobs:
@@ -18,8 +18,23 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Verifica token repo backup
+        env:
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Secret BACKUP_REPO_TOKEN vuoto o non presente su questo repo"
+            exit 1
+          fi
+          echo "Utente del token:"
+          curl -s -H "Authorization: Bearer $TOKEN" https://api.github.com/user | grep '"login"' || echo "  token non valido o scaduto"
+          echo "Permessi sul repo backup:"
+          curl -s -H "Authorization: Bearer $TOKEN" https://api.github.com/repos/simeoliinfissi/infissipro-backups | grep -E '"full_name"|"push"|"message"' || true
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" https://api.github.com/repos/simeoliinfissi/infissipro-backups)
+          echo "HTTP $CODE (200 = repo visibile al token; 404 = repo o permessi mancanti)"
+
       - name: Installa firebase-admin
-        run: npm install firebase-admin
+        run: npm install firebase-admin --no-save
 
       - name: Esegui backup
         env:
@@ -30,8 +45,9 @@ jobs:
         env:
           TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
         run: |
-          git clone https://x-access-token:${TOKEN}@github.com/simeoliinfissi/infissipro-backups.git backup-repo
-          cp -r backups/. backup-repo/backups/ 2>/dev/null || mkdir -p backup-repo/backups && cp -r backups/. backup-repo/backups/
+          git clone "https://x-access-token:${TOKEN}@github.com/simeoliinfissi/infissipro-backups.git" backup-repo
+          mkdir -p backup-repo/backups
+          cp backups/*.json backup-repo/backups/
           cd backup-repo
           git config user.name "InfissiPro Backup Bot"
           git config user.email "backup@infissipro.it"
