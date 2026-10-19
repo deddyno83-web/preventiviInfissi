@@ -119,6 +119,10 @@ export default function Impostazioni() {
           if (typeof val.seconds === 'number' && typeof val.nanoseconds === 'number') {
             return new firebase.firestore.Timestamp(val.seconds, val.nanoseconds);
           }
+          // Backup generati prima dal vecchio script (Admin SDK): { _seconds, _nanoseconds }
+          if (typeof val._seconds === 'number' && typeof val._nanoseconds === 'number') {
+            return new firebase.firestore.Timestamp(val._seconds, val._nanoseconds);
+          }
           const out = {};
           for (const [key, v] of Object.entries(val)) out[key] = ripristinaTimestamps(v);
           return out;
